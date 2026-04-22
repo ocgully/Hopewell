@@ -543,7 +543,21 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _force_utf8_stdout() -> None:
+    """Force stdout/stderr to UTF-8 so Unicode in node titles, notes, and
+    rendered output survives Windows' cp1252 default."""
+    for stream_name in ("stdout", "stderr"):
+        s = getattr(sys, stream_name, None)
+        if s is None:
+            continue
+        try:
+            s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def main(argv=None) -> int:
+    _force_utf8_stdout()
     parser = _build_parser()
     args = parser.parse_args(argv)
     try:
