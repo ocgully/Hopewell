@@ -1,0 +1,420 @@
+"""Core data model — Nodes, Components, Edges, Events.
+
+Philosophy: composition over typing. A node IS the set of components it HAS.
+Processors discover by component shape; projects extend by adding new
+components rather than forking the code.
+
+All types are dataclasses for dict-friendliness and light JSON round-trips.
+"""
+from __future__ import annotations
+
+import dataclasses
+import datetime
+import enum
+import hashlib
+import re
+from dataclasses import dataclass, field
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+
+
+# ---------------------------------------------------------------------------
+# Enumerations
+# ---------------------------------------------------------------------------
+
+
+class NodeStatus(str, enum.Enum):
+    """Strict state machine. Transitions enforced by `Node.set_status`."""
+
+    idea = "idea"
+    blocked = "blocked"
+    ready = "ready"
+    doing = "doing"
+    review = "review"
+    done = "done"
+    archived = "archived"
+    cancelled = "cancelled"
+
+
+# Allowed status transitions (state-machine).
+# key = from, value = set of legal `to` states.
+STATUS_TRANSITIONS: Dict[NodeStatus, Set[NodeStatus]] = {
+    NodeStatus.idea:      {NodeStatus.blocked, NodeStatus.ready, NodeStatus.cancelled, NodeStatus.archived},
+    NodeStatus.blocked:   {NodeStatus.ready, NodeStatus.cancelled, NodeStatus.archived},
+    NodeStatus.ready:     {NodeStatus.doing, NodeStatus.blocked, NodeStatus.cancelled, NodeStatus.archived},
+    NodeStatus.doing:     {NodeStatus.review, NodeStatus.blocked, NodeStatus.ready, NodeStatus.cancelled},
+    NodeStatus.review:    {NodeStatus.done, NodeStatus.doing, NodeStatus.blocked, NodeStatus.cancelled},
+    NodeStatus.done:      {NodeStatus.archived, NodeStatus.doing},   # reopen via `doing`
+    NodeStatus.archived:  set(),
+    NodeStatus.cancelled: {NodeStatus.archived},
+}
+
+TERMINAL_STATUSES: Set[NodeStatus] = {NodeStatus.done, NodeStatus.archived, NodeStatus.cancelled}
+
+
+class EdgeKind(str, enum.Enum):
+    blocks = "blocks"           # upstream must reach a terminal status before downstream can start
+    produces = "produces"       # artifact flow: upstream produces something downstream consumes
+    consumes = "consumes"       # inverse of produces, stored separately for fast reverse lookup
+    parent = "parent"           # grouping: downstream is a child of upstream
+    related = "related"         # informational, no execution constraint
+
+
+# ---------------------------------------------------------------------------
+# Component
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Component:
+    """A component is a contract. Declaring one on a node announces that the
+    node participates in a role the orchestrator and processors may recognise.
+    """
+
+    name: str
+    description: str = ""
+    schema: Dict[str, Any] = field(default_factory=dict)   # JSON-Schema-ish for component_data
+    required_fields: List[str] = field(default_factory=list)
+
+    def validate_data(self, data: Dict[str, Any]) -> List[str]:
+        """Return list of validation errors. Empty list = valid."""
+        errors: List[str] = []
+        for fld in self.required_fields:
+            if fld not in data:
+                errors.append(f"component `{self.name}`: missing required field `{fld}`")
+        return errors
+
+
+class ComponentRegistry:
+    """Loadable registry of components. Projects extend via .hopewell/components/*.yaml."""
+
+    def __init__(self) -> None:
+        self._components: Dict[str, Component] = {}
+
+    def register(self, component: Component) -> None:
+        if component.name in self._components:
+            raise ValueError(f"component `{component.name}` already registered")
+        self._components[component.name] = component
+
+    def get(self, name: str) -> Optional[Component]:
+        return self._components.get(name)
+
+    def names(self) -> List[str]:
+        return sorted(self._components.keys())
+
+    def validate_node_components(self, component_names: Iterable[str]) -> List[str]:
+        """Return errors if any component is unknown."""
+        errors: List[str] = []
+        for name in component_names:
+            if name not in self._components:
+                errors.append(f"unknown component: `{name}`")
+        return errors
+
+
+# Built-in component definitions shipped with Hopewell v1.
+BUILTIN_COMPONENTS: List[Component] = [
+    Component(
+        name="work-item",
+        description="Trackable unit of effort.",
+        schema={"estimate_hours": "number", "priority": "string"},
+    ),
+    Component(
+        name="deliverable",
+        description="Produces a concrete artifact.",
+        schema={"definition_of_done": "array", "acceptance": "array"},
+    ),
+    Component(
+        name="user-facing",
+        description="Reaches end users; release-noteable.",
+        schema={"persona": "string", "release_notes": "string"},
+    ),
+    Component(
+        name="internal",
+        description="Internal-only work; no user-facing impact.",
+    ),
+    Component(
+        name="defect",
+        description="Fixes a regression or bug.",
+        schema={"root_cause": "string", "affected_versions": "array"},
+    ),
+    Component(
+        name="risk",
+        description="Security / compliance / governance concern.",
+        schema={"risk_category": "string", "severity": "string"},
+    ),
+    Component(
+        name="debt",
+        description="Removes future impediment.",
+        schema={"blocks_which_future_work": "array"},
+    ),
+    Component(
+        name="test",
+        description="Validates something.",
+        schema={"test_kind": "string", "target_node": "string"},
+    ),
+    Component(
+        name="documentation",
+        description="Text artifact for humans or agents.",
+        schema={"doc_kind": "string", "audience": "string"},
+    ),
+    Component(
+        name="screenshot",
+        description="Visual artifact.",
+        schema={"captures_what": "string", "device": "string"},
+    ),
+    Component(
+        name="design",
+        description="Design artifact (mockup, spec, ADR).",
+        schema={"tool": "string", "link": "string"},
+    ),
+    Component(
+        name="code-map",
+        description="Links to a codemap query whose result gates this node.",
+        schema={"query": "string", "expected": "string"},
+    ),
+    Component(
+        name="grouping",
+        description="Aggregates child nodes — epic / story / release.",
+        schema={"children_query": "string"},
+    ),
+    Component(
+        name="deployment-target",
+        description="Declares where work must land.",
+        schema={"target_env": "string"},
+        required_fields=["target_env"],
+    ),
+    Component(
+        name="approval-gate",
+        description="Requires human sign-off.",
+        schema={"approvers": "array", "approval_criteria": "string"},
+    ),
+    Component(
+        name="flagged",
+        description="Live-ops feature-flag gated.",
+        schema={"flag_name": "string", "rollout_plan": "string"},
+        required_fields=["flag_name"],
+    ),
+    Component(
+        name="retriable",
+        description="Orchestrator retries on failure.",
+        schema={"max_retries": "integer", "backoff": "string"},
+    ),
+    Component(
+        name="github-issue",
+        description="Originated from a GitHub issue; maintains linkback.",
+        schema={"repo": "string", "number": "integer", "url": "string", "gh_state": "string"},
+        required_fields=["repo", "number"],
+    ),
+]
+
+
+def default_registry() -> ComponentRegistry:
+    """A fresh registry populated with all built-in components."""
+    reg = ComponentRegistry()
+    for c in BUILTIN_COMPONENTS:
+        reg.register(c)
+    return reg
+
+
+# ---------------------------------------------------------------------------
+# Node
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class NodeInput:
+    """Declares something this node needs before it can run."""
+
+    from_node: Optional[str] = None            # upstream node id (if from-upstream)
+    artifact: Optional[str] = None             # artifact path produced by the upstream
+    kind: Optional[str] = None                 # external kind (design, spec, feedback, etc.)
+    description: Optional[str] = None
+    required: bool = True
+
+
+@dataclass
+class NodeOutput:
+    """Declares something this node produces when it completes."""
+
+    path: Optional[str] = None                 # artifact path
+    kind: Optional[str] = None                 # artifact kind (code, doc, fixture, signal)
+    signal: Optional[str] = None               # abstract completion signal (e.g. "ready-to-review")
+
+
+@dataclass
+class Node:
+    """Primary work unit. Composition-based: its capabilities and the
+    processors that handle it are determined by `components`, not a type enum."""
+
+    id: str
+    title: str
+    status: NodeStatus = NodeStatus.idea
+    priority: str = "P2"                               # P0..P3
+    created: str = field(default_factory=lambda: _now())
+    updated: str = field(default_factory=lambda: _now())
+    owner: Optional[str] = None
+    project: Optional[str] = None
+    parent: Optional[str] = None
+    components: List[str] = field(default_factory=list)
+    inputs: List[NodeInput] = field(default_factory=list)
+    outputs: List[NodeOutput] = field(default_factory=list)
+    blocks: List[str] = field(default_factory=list)
+    blocked_by: List[str] = field(default_factory=list)
+    related: List[str] = field(default_factory=list)
+    component_data: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    body: str = ""                                     # free-form markdown body (not notes)
+    notes: List[str] = field(default_factory=list)     # append-only
+
+    # ---- status transitions ----
+    def can_transition_to(self, new_status: NodeStatus) -> bool:
+        try:
+            cur = NodeStatus(self.status) if not isinstance(self.status, NodeStatus) else self.status
+        except ValueError:
+            return False
+        return new_status in STATUS_TRANSITIONS.get(cur, set())
+
+    # ---- component helpers ----
+    def has_component(self, name: str) -> bool:
+        return name in self.components
+
+    def has_all(self, names: Iterable[str]) -> bool:
+        wanted = set(names)
+        return wanted.issubset(set(self.components))
+
+    def has_any(self, names: Iterable[str]) -> bool:
+        return bool(set(names) & set(self.components))
+
+    # ---- serialisation ----
+    def to_frontmatter(self) -> Dict[str, Any]:
+        """Convert to the dict we'll serialise into YAML front-matter."""
+        d: Dict[str, Any] = {
+            "id": self.id,
+            "status": self.status.value if isinstance(self.status, NodeStatus) else self.status,
+            "priority": self.priority,
+            "created": self.created,
+            "updated": self.updated,
+        }
+        if self.owner:
+            d["owner"] = self.owner
+        if self.project:
+            d["project"] = self.project
+        if self.parent:
+            d["parent"] = self.parent
+        if self.components:
+            d["components"] = list(self.components)
+        if self.inputs:
+            d["inputs"] = [_dataclass_to_dict_sparse(i) for i in self.inputs]
+        if self.outputs:
+            d["outputs"] = [_dataclass_to_dict_sparse(o) for o in self.outputs]
+        if self.blocks:
+            d["blocks"] = list(self.blocks)
+        if self.blocked_by:
+            d["blocked_by"] = list(self.blocked_by)
+        if self.related:
+            d["related"] = list(self.related)
+        if self.component_data:
+            d["component_data"] = self.component_data
+        return d
+
+    @classmethod
+    def from_frontmatter(cls, fm: Dict[str, Any], *, title: str, body: str, notes: List[str]) -> "Node":
+        return cls(
+            id=fm["id"],
+            title=title,
+            status=NodeStatus(fm.get("status", "idea")),
+            priority=fm.get("priority", "P2"),
+            created=fm.get("created") or _now(),
+            updated=fm.get("updated") or _now(),
+            owner=fm.get("owner"),
+            project=fm.get("project"),
+            parent=fm.get("parent"),
+            components=list(fm.get("components", [])),
+            inputs=[NodeInput(**_coerce_input(i)) for i in (fm.get("inputs") or [])],
+            outputs=[NodeOutput(**_coerce_output(o)) for o in (fm.get("outputs") or [])],
+            blocks=list(fm.get("blocks", [])),
+            blocked_by=list(fm.get("blocked_by", [])),
+            related=list(fm.get("related", [])),
+            component_data=dict(fm.get("component_data", {})),
+            body=body,
+            notes=notes,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Edge + Event
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Edge:
+    """An explicit edge — when stored in edges.jsonl with a rationale."""
+    from_id: str
+    to_id: str
+    kind: EdgeKind
+    artifact: Optional[str] = None
+    reason: Optional[str] = None
+    created: str = field(default_factory=lambda: _now())
+
+
+@dataclass
+class Event:
+    """Append-only record of a graph mutation."""
+    ts: str
+    kind: str                                          # e.g. node.status.change, node.create
+    node: Optional[str] = None
+    actor: Optional[str] = None                        # agent id or human handle
+    data: Dict[str, Any] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _now() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _dataclass_to_dict_sparse(obj) -> Dict[str, Any]:
+    """dataclass -> dict, dropping None values for cleaner front-matter."""
+    if dataclasses.is_dataclass(obj):
+        d = dataclasses.asdict(obj)
+        return {k: v for k, v in d.items() if v not in (None, [], {}, "")}
+    return obj
+
+
+def _coerce_input(x: Any) -> Dict[str, Any]:
+    """Accept either a dict or NodeInput; return the kwargs-ready dict."""
+    if isinstance(x, NodeInput):
+        return dataclasses.asdict(x)
+    if isinstance(x, dict):
+        return {k: x.get(k) for k in ("from_node", "artifact", "kind", "description", "required")}
+    raise TypeError(f"unexpected input shape: {type(x).__name__}")
+
+
+def _coerce_output(x: Any) -> Dict[str, Any]:
+    if isinstance(x, NodeOutput):
+        return dataclasses.asdict(x)
+    if isinstance(x, dict):
+        return {k: x.get(k) for k in ("path", "kind", "signal")}
+    raise TypeError(f"unexpected output shape: {type(x).__name__}")
+
+
+# Node id generation: "<PREFIX>-<ZERO-PADDED-N>".
+_ID_RE = re.compile(r"^([A-Z][A-Z0-9]*)-(\d+)$")
+
+
+def parse_node_id(node_id: str) -> Tuple[str, int]:
+    m = _ID_RE.match(node_id)
+    if not m:
+        raise ValueError(f"malformed node id: {node_id!r} (expected `<PREFIX>-<N>`)")
+    return m.group(1), int(m.group(2))
+
+
+def format_node_id(prefix: str, n: int, *, pad: int = 4) -> str:
+    return f"{prefix}-{n:0{pad}d}"
+
+
+# Content-address helper (for agent fingerprinting — lives elsewhere but the
+# primitive is universal enough to put here).
+def sha_of(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()

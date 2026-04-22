@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hopewell"
+version = "0.1.0"
+description = "Flow-framework tool for AI-agent-driven work: composition-over-typing node graph, parallel scheduler, orchestrator, and web UI. Replaces ticket trackers with a graph that agents can execute."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "ocgully" }]
+keywords = ["hopewell", "flow", "flow-framework", "tickets", "issue-tracker", "orchestration", "ai", "agents", "dag", "workflow"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Bug Tracking",
+]
+
+dependencies = [
+  # Core is stdlib-only. Web + GitHub sync are optional extras.
+]
+
+[project.optional-dependencies]
+web = [
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+  "watchdog>=4.0",
+]
+github = [
+  "requests>=2.31",
+]
+full = [
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+  "watchdog>=4.0",
+  "requests>=2.31",
+]
+dev = [
+  "pytest>=8",
+  "ruff>=0.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/ocgully/hopewell"
+Repository = "https://github.com/ocgully/hopewell"
+Issues = "https://github.com/ocgully/hopewell/issues"
+
+[project.scripts]
+hopewell = "hopewell.cli:main"
+hw = "hopewell.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hopewell*"]
+
+[tool.setuptools.package-data]
+hopewell = ["web/static/*", "web/static/**/*", "templates/*"]
