@@ -6,10 +6,12 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
+from hopewell import attestation as att_mod
 from hopewell import config as config_mod
 from hopewell import events, paths, storage
+from hopewell.attestation import AgentRegistry
 from hopewell.config import ProjectConfig
 from hopewell.model import (
     ComponentRegistry, Edge, EdgeKind, Node, NodeInput, NodeOutput,
@@ -39,6 +41,7 @@ class Project:
         self.root = root.resolve()
         self.cfg = cfg
         self.registry = registry
+        self._agent_registry: Optional[AgentRegistry] = None
 
     # ---- load / init ----
 
@@ -122,6 +125,40 @@ class Project:
     def views_dir(self) -> Path:
         return self.hw_dir / "views"
 
+    @property
+    def attestations_path(self) -> Path:
+        return self.hw_dir / "attestations.jsonl"
+
+    @property
+    def agents_path(self) -> Path:
+        return self.hw_dir / "agents.jsonl"
+
+    @property
+    def agent_registry(self) -> AgentRegistry:
+        if self._agent_registry is None:
+            self._agent_registry = AgentRegistry(self.agents_path)
+        return self._agent_registry
+
+    def _fingerprint_for(self, actor: Optional[str]) -> Optional[str]:
+        """Look up `actor`'s current fingerprint in the agent registry."""
+        if not actor:
+            return None
+        rec = self.agent_registry.get(actor)
+        return rec.current_fingerprint if rec else None
+
+    def _attest(self, *, kind: str, node: Optional[str], actor: Optional[str],
+                commit: Optional[str] = None, reason: Optional[str] = None,
+                evidence: Optional[List[str]] = None,
+                data: Optional[Dict[str, Any]] = None) -> None:
+        """Emit an attestation alongside the event log. Idempotent + append-only."""
+        fp = self._fingerprint_for(actor)
+        att_mod.record(
+            self.attestations_path,
+            kind=kind, node=node, actor=actor,
+            fingerprint_hex=fp, commit=commit, reason=reason,
+            evidence=evidence, data=data,
+        )
+
     # ---- node id generator ----
 
     def next_node_id(self) -> str:
@@ -162,6 +199,8 @@ class Project:
         self.save_node(node)
         events.append(self.events_path, "node.create", node=node_id, actor=actor,
                       data={"components": node.components, "title": title})
+        self._attest(kind="node.create", node=node_id, actor=actor,
+                     data={"components": node.components, "title": title})
         return node
 
     def save_node(self, node: Node) -> None:
@@ -213,6 +252,8 @@ class Project:
         self.save_node(node)
         events.append(self.events_path, "node.status.change", node=node_id, actor=actor,
                       data={"from": old.value, "to": new_status.value, "reason": reason})
+        self._attest(kind="node.status.change", node=node_id, actor=actor, reason=reason,
+                     data={"from": old.value, "to": new_status.value})
         return node
 
     def touch(self, node_id: str, note: str, *, actor: Optional[str] = None) -> Node:
@@ -224,6 +265,7 @@ class Project:
         self.save_node(node)
         events.append(self.events_path, "node.touch", node=node_id, actor=actor,
                       data={"note": note})
+        self._attest(kind="node.touch", node=node_id, actor=actor, data={"note": note})
         return node
 
     def link(self, from_id: str, kind: EdgeKind, to_id: str, *,
@@ -262,6 +304,9 @@ class Project:
         events.append(self.events_path, "edge.create", actor=actor, data={
             "from": from_id, "to": to_id, "kind": kind.value, "artifact": artifact, "reason": reason
         })
+        self._attest(kind="edge.create", node=from_id, actor=actor, reason=reason,
+                     data={"from": from_id, "to": to_id, "kind": kind.value,
+                           "artifact": artifact})
         return edge
 
     def close(self, node_id: str, *, commit: Optional[str] = None,
@@ -280,8 +325,15 @@ class Project:
         for s in sequence:
             self.set_status(node_id, s, actor=actor, reason=reason)
         closing_note = f"closed" + (f" by commit {commit}" if commit else "") + \
-                       (f" — {reason}" if reason else "")
+                       (f" - {reason}" if reason else "")
         self.touch(node_id, closing_note, actor=actor)
+        # Emit an explicit "node.close" attestation carrying commit + evidence so
+        # quality metrics can trace closed-by-<fingerprint> cheaply.
+        evidence = []
+        if commit:
+            evidence.append(f"commit:{commit}")
+        self._attest(kind="node.close", node=node_id, actor=actor, commit=commit,
+                     reason=reason, evidence=evidence or None)
         return self.node(node_id)
 
     # ---- integrity ----

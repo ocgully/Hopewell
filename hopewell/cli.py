@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 from hopewell import __version__, SCHEMA_VERSION
+from hopewell import attestation as att_mod
 from hopewell import events as events_mod
 from hopewell import hooks as hooks_mod
 from hopewell import paths as paths_mod
@@ -251,11 +252,97 @@ def cmd_query(args) -> int:
         data = q.graph(project)
     elif args.subject == "show":
         data = q.show(project, args.name)
+    elif args.subject == "attestations":
+        data = {
+            "query": "attestations",
+            "filters": {"agent": args.owner, "fingerprint": args.fingerprint,
+                        "node": args.name, "since": args.since, "kind": args.att_kind,
+                        "limit": args.limit},
+            "attestations": att_mod.query_attestations(
+                project.attestations_path,
+                agent=args.owner, fingerprint=args.fingerprint,
+                node=args.name, since=args.since, kind=args.att_kind,
+                limit=args.limit,
+            ),
+        }
     else:
         print(f"hopewell: unknown query subject '{args.subject}'", file=sys.stderr)
         return 1
     _print_json(data)
     return 0
+
+
+# ---------------------------------------------------------------------------
+# agent
+# ---------------------------------------------------------------------------
+
+
+def cmd_agent(args) -> int:
+    project = _project(args)
+    reg = project.agent_registry
+
+    if args.action == "register":
+        name = args.name
+        if not name.startswith("@"):
+            name = "@" + name
+        doc_path: Optional[str] = None
+        fp: Optional[str] = None
+        if args.doc:
+            p = Path(args.doc)
+            if not p.is_absolute():
+                p = (project.root / p).resolve()
+            fp = att_mod.fingerprint(p)
+            try:
+                doc_path = str(p.relative_to(project.root)).replace("\\", "/")
+            except ValueError:
+                doc_path = str(p)
+        elif args.fingerprint:
+            fp = args.fingerprint
+        rec = reg.register(name, doc_path=doc_path, current_fp=fp)
+        _print_json(rec.to_dict())
+        return 0
+
+    if args.action == "list":
+        _print_json({
+            "agents": [r.to_dict() for r in reg.all()],
+        })
+        return 0
+
+    if args.action == "fingerprint":
+        name = args.name
+        if name and not name.startswith("@"):
+            name = "@" + name
+        rec = reg.get(name)
+        if rec is None:
+            print(f"hopewell: no agent registered as {name!r}", file=sys.stderr)
+            return 1
+        # If a --doc is provided, recompute + register if changed
+        if args.doc:
+            p = Path(args.doc)
+            if not p.is_absolute():
+                p = (project.root / p).resolve()
+            new_fp = att_mod.fingerprint(p)
+            if new_fp != rec.current_fingerprint:
+                try:
+                    doc_rel = str(p.relative_to(project.root)).replace("\\", "/")
+                except ValueError:
+                    doc_rel = str(p)
+                rec = reg.register(name, doc_path=doc_rel, current_fp=new_fp)
+        _print_json(rec.to_dict())
+        return 0
+
+    if args.action == "quality":
+        name = args.name
+        if name and not name.startswith("@"):
+            name = "@" + name
+        # Build {node_id: Node} for defect-traceback
+        nodes_map = {n.id: n for n in project.all_nodes()}
+        data = att_mod.quality(project.attestations_path, name, nodes_map, reg)
+        _print_json(data)
+        return 0
+
+    print(f"hopewell: unknown agent action '{args.action}'", file=sys.stderr)
+    return 1
 
 
 # ---------------------------------------------------------------------------
@@ -505,12 +592,26 @@ def _build_parser() -> argparse.ArgumentParser:
     # query
     sp = sub.add_parser("query", help="Read-only JSON queries")
     sp.add_argument("subject", choices=["ready", "deps", "waves", "critical-path",
-                                        "component", "metrics", "graph", "show"])
+                                        "component", "metrics", "graph", "show",
+                                        "attestations"])
     sp.add_argument("name", nargs="?", default=None)
     sp.add_argument("--owner", default=None)
     sp.add_argument("--transitive", action="store_true")
     sp.add_argument("--by", default="component", choices=["component", "status", "owner"])
+    sp.add_argument("--fingerprint", default=None, help="(attestations) filter by agent fingerprint")
+    sp.add_argument("--since", default=None, help="(attestations) ISO-8601 timestamp; return entries since")
+    sp.add_argument("--att-kind", default=None, help="(attestations) filter by kind")
+    sp.add_argument("--limit", type=int, default=None, help="(attestations) cap results")
     sp.set_defaults(func=cmd_query)
+
+    # agent
+    sp = sub.add_parser("agent", help="Agent registry + fingerprinting + quality")
+    sp.add_argument("action", choices=["register", "list", "fingerprint", "quality"])
+    sp.add_argument("name", nargs="?", default=None,
+                    help="Agent name (@ prefix auto-added if missing)")
+    sp.add_argument("--doc", default=None, help="Path to agent doc file (for fingerprint)")
+    sp.add_argument("--fingerprint", default=None, help="Explicit fingerprint hex (12 chars) if --doc isn't handy")
+    sp.set_defaults(func=cmd_agent)
 
     # orch
     sp = sub.add_parser("orch", help="Orchestrator: plan / run / status")

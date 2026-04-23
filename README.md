@@ -8,9 +8,9 @@ components riding a DAG that agents can execute.
 Named after a ship in *Gulliver's Travels*. Work *sails* through a network
 of ports (nodes), carrying cargo (artifacts).
 
-> **Status: v0.1–v0.3 (MVP).** CLI + Python library + basic orchestrator
-> + GitHub ingestion. Web UI, attestation + agent fingerprinting, and
-> LLM-driven graph evolution land in v0.4–v0.6. See **Roadmap** below.
+> **Status: v0.4.** CLI + Python library + basic orchestrator + GitHub
+> ingestion + **attestation ledger + agent fingerprinting**. Web UI and
+> LLM-driven graph evolution still pending. See **Roadmap** below.
 
 ---
 
@@ -248,6 +248,13 @@ hopewell info                    # JSON summary
 
 hopewell query ready | deps <id> [--transitive] | waves | critical-path
             | component <name> | metrics [--by component|status|owner] | graph | show <id>
+            | attestations [--owner @x] [--fingerprint <hex>] [<node-id>]
+                           [--since <ts>] [--att-kind <k>] [--limit N]
+
+hopewell agent register <name> [--doc <path>] [--fingerprint <hex>]
+hopewell agent list
+hopewell agent fingerprint <name> [--doc <path>]     # optionally re-hash doc
+hopewell agent quality <name>                         # per-fingerprint metrics
 
 hopewell orch {plan|run|status} [--dry-run] [--max N]
 
@@ -282,6 +289,14 @@ Runner(project).execute(max_parallel=4)
 
 # Sync
 sync_from_github(project)
+
+# Attestation + agent fingerprinting (v0.4)
+from hopewell.attestation import AgentRegistry, fingerprint, query_attestations
+reg = project.agent_registry
+reg.register("@alice", doc_path="docs/alice.md",
+             current_fp=fingerprint(project.root / "docs/alice.md"))
+# Every project.touch/set_status/close/link now emits an attestation
+# tagged with agent_id = "@alice@<12-char-fingerprint>".
 ```
 
 The CLI is argparse over this library — everything the CLI does, your
@@ -296,10 +311,10 @@ scripts can do without shelling out.
 | **v0.1** | Foundations: model, storage, CLI (init/new/show/list/touch/link/close/check/graph/render), library, hooks, .claudeignore |
 | **v0.2** | Query + Scheduler: ready/deps/waves/critical-path/metrics |
 | **v0.3** | Orchestrator basic + **GitHub ingestion** |
-| v0.4 | Attestation + agent fingerprinting; agent-dispatch processor |
+| **v0.4** | **Attestation ledger + agent fingerprinting (doc-SHA); `hopewell agent register / list / fingerprint / quality`; `hopewell query attestations`; quality metrics (nodes closed, reopens, defects-traced, avg review iterations) per fingerprint** |
 | v0.5 | LLM-driven graph evolution (`hopewell evolve ...`), loops |
 | v0.6 | Web UI (FastAPI + SSE + zero-build tree/canvas/timeline) |
-| v0.7 | Custom Python processors + YAML component loader |
+| v0.7 | Custom Python processors + YAML component loader + agent-dispatch processor |
 | v0.8 | Replace SpecKit planning artefacts |
 
 ---

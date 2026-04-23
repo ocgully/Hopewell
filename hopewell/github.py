@@ -284,7 +284,7 @@ def _get_issue(repo: str, number: int, *, token: Optional[str] = None) -> Dict[s
 def _http_json(url: str, *, token: Optional[str], include_next: bool):
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "hopewell/0.1 (+https://github.com/ocgully/Hopewell)",
+        "User-Agent": "hopewell/0.4 (+https://github.com/ocgully/Hopewell)",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if token:
