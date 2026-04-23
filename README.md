@@ -82,6 +82,28 @@ hopewell close HW-0001 --commit abc123 --reason "tests pass, shipped"
 hopewell hooks install
 ```
 
+## Upgrading — `hopewell migrate`
+
+After upgrading the `hopewell` package (new version brings new
+project-level setup — `.gitattributes` entries, CLAUDE.md rules,
+config sections), run once in each project that already has `.hopewell/`:
+
+```bash
+pip install -U hopewell        # or: pip install -e <path/to/local/clone>
+cd <your-project>
+hopewell migrate               # idempotent; safe to re-run any time
+```
+
+It re-applies every idempotent step `hopewell init` performs: refresh
+the `.gitattributes` block + git-config merge driver, top-up the
+root-level `.claudeignore`, append the "do not read `.hopewell/`" block
+to `CLAUDE.md` if missing. No events or nodes are touched except for an
+audit `project.migrate` entry in `events.jsonl`.
+
+`hopewell init` on an existing `.hopewell/` is also idempotent — running
+it won't add a duplicate `project.init` event — but `migrate` is the
+named command for the intent.
+
 ## Coordination — multiple agents & humans in the same repo
 
 Hopewell coordinates concurrent work with **pure git** — no server, no

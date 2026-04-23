@@ -92,9 +92,15 @@ class Project:
         # If no CLAUDE.md exists, do NOT create one — respect whatever the
         # project prefers. The rule is still in .claudeignore.
 
-        # Event log — first entry.
-        events.append(hw / "events.jsonl", "project.init",
-                      data={"name": cfg.name, "id_prefix": cfg.id_prefix})
+        # Event log — first entry only on a truly new project. Re-running
+        # `hopewell init` on an existing .hopewell/ is idempotent: skip the
+        # duplicate project.init event but still refresh claudeignore /
+        # CLAUDE.md rule / merge driver so upgrades flow in.
+        events_path = hw / "events.jsonl"
+        already_initialized = _has_project_init_event(events_path)
+        if not already_initialized:
+            events.append(events_path, "project.init",
+                          data={"name": cfg.name, "id_prefix": cfg.id_prefix})
 
         # Empty edges log (so readers never have to worry about missing file).
         edges_log = hw / "edges.jsonl"
@@ -102,9 +108,28 @@ class Project:
             edges_log.write_text("", encoding="utf-8")
 
         # Git merge driver + .gitattributes for JSONL append-only logs (v0.5).
-        # Best-effort: only activates in a git worktree.
+        # Best-effort: only activates in a git worktree. Idempotent.
         _install_merge_driver(root)
 
+        return cls.load(root)
+
+    @classmethod
+    def migrate(cls, start: Optional[Path] = None) -> "Project":
+        """Re-apply every idempotent setup step to an existing `.hopewell/`.
+
+        Used when a new Hopewell version adds project-level setup (new
+        .gitattributes entries, new config sections, new CLAUDE.md rules).
+        Safe to re-run any number of times.
+        """
+        root = paths.require_project_root(start)
+        project = cls.load(root)
+
+        # Re-run everything in init that is idempotent; skip the duplicate
+        # project.init event by calling init() itself — it now guards on
+        # existing events.
+        cls.init(root, id_prefix=project.cfg.id_prefix, name=project.cfg.name)
+        events.append(project.events_path, "project.migrate",
+                      data={"from_version": "<=pre-migrate>"})
         return cls.load(root)
 
     # ---- paths ----
@@ -426,6 +451,20 @@ def _find_cycles(adj: Dict[str, List[str]]) -> List[List[str]]:
 def _now() -> str:
     import datetime
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _has_project_init_event(events_path: Path) -> bool:
+    """Cheap scan for a prior project.init event; used to keep init idempotent."""
+    if not events_path.is_file():
+        return False
+    try:
+        with events_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                if '"kind": "project.init"' in line or '"kind":"project.init"' in line:
+                    return True
+    except OSError:
+        return False
+    return False
 
 
 # ---------------------------------------------------------------------------

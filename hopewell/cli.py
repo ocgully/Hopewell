@@ -277,6 +277,24 @@ def cmd_merge_driver(args) -> int:
     return merge_driver_mod.run_cli([args.kind, args.ancestor, args.ours, args.theirs])
 
 
+def cmd_migrate(args) -> int:
+    """Re-apply every idempotent project-level setup step (merge driver,
+    .gitattributes, .claudeignore, CLAUDE.md block) to an existing
+    `.hopewell/`. Use after upgrading Hopewell to pick up new setup."""
+    from hopewell.project import Project
+    start = Path(args.project_root).resolve() if args.project_root else None
+    try:
+        project = Project.migrate(start)
+    except FileNotFoundError as exc:
+        print(f"hopewell: {exc}", file=sys.stderr)
+        return 1
+    if not args.quiet:
+        print(f"Migrated {project.hw_dir}")
+        print(f"  ran: merge-driver install, .gitattributes refresh, CLAUDE.md rule check")
+        print(f"  to bring newer Hopewell project-level setup into an existing tree")
+    return 0
+
+
 def cmd_info(args) -> int:
     try:
         project = _project(args)
@@ -662,6 +680,10 @@ def _build_parser() -> argparse.ArgumentParser:
     # info
     sp = sub.add_parser("info", help="Project + config + state summary (JSON)")
     sp.set_defaults(func=cmd_info)
+
+    sp = sub.add_parser("migrate", help="Re-apply idempotent setup after a Hopewell upgrade")
+    sp.add_argument("--quiet", action="store_true")
+    sp.set_defaults(func=cmd_migrate)
 
     # query
     sp = sub.add_parser("query", help="Read-only JSON queries")
