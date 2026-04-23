@@ -33,6 +33,26 @@ Three principles make it different:
 3. **Humans read markdown, agents query the CLI.** `.hopewell/` is
    Claude-ignored. Agents go through `hopewell query ...`; never grep.
 
+## What Hopewell is — and isn't
+
+Hopewell is the **ledger**, the **map**, and the **viewport** — not the
+executor.
+
+- **Ledger.** Records nodes, edges, events, claims, attestations.
+  Append-only, merge-safe, the one source of truth agents and humans
+  agree on.
+- **Map.** Authors the flow network — the executor topology that defines
+  where work routes, which gates apply, what "done" means. Agents
+  consult this map to know where to push.
+- **Viewport.** Projects the ledger through the map — ready queues, flow
+  inboxes, traversals, cycle time, rework ratios, drift alerts. Makes
+  both the state and the shape of work visible.
+
+What it **is not**: an executor. Hopewell does not spawn agents, hand
+off tokens, schedule compute, or coordinate worktrees. Execution lives
+in the agent runtime (Claude Code, agent marketplaces, bundle scripts).
+Hopewell is the contract and the ledger they agree on.
+
 ---
 
 ## Install
