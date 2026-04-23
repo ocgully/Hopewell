@@ -205,6 +205,21 @@ BUILTIN_COMPONENTS: List[Component] = [
         required_fields=["repo", "number"],
     ),
     Component(
+        name="loop",
+        description=(
+            "Iterative subgraph driver (v0.6). The orchestrator walks the "
+            "nodes listed in `over` up to `max_iterations` times or until "
+            "the `until` predicate is satisfied. Each pass is recorded in "
+            "`iterations`. Created via `hopewell.evolve.add_loop`."
+        ),
+        schema={
+            "over": "array of node ids (the subgraph to iterate)",
+            "until": "string (predicate describing exit condition)",
+            "max_iterations": "integer (safety ceiling)",
+            "iterations": "array (append-only run records)",
+        },
+    ),
+    Component(
         name="needs-uat",
         description=("Requires user-acceptance testing. Internal tests passing "
                      "is not sufficient; a human has to verify against "
