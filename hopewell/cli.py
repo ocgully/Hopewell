@@ -14,6 +14,8 @@ from hopewell import __version__, SCHEMA_VERSION
 from hopewell import attestation as att_mod
 from hopewell import claim as claim_mod
 from hopewell import events as events_mod
+from hopewell import evolve as evolve_mod
+from hopewell import extensions as extensions_mod
 from hopewell import hooks as hooks_mod
 from hopewell import merge_driver as merge_driver_mod
 from hopewell import paths as paths_mod
@@ -447,6 +449,106 @@ def cmd_checkpoint(args) -> int:
     return 0
 
 
+def cmd_evolve(args) -> int:
+    """LLM-driven graph evolution ops."""
+    project = _project(args)
+    actor = _actor_from_env()
+
+    if args.action == "add-node":
+        components = [c.strip() for c in (args.components or "").split(",") if c.strip()]
+        if not components:
+            print("hopewell: evolve add-node requires --components", file=sys.stderr)
+            return 1
+        nid = evolve_mod.add_node(project, components=components,
+                                  title=args.title, owner=args.owner,
+                                  parent=args.parent, actor=actor, reason=args.reason)
+        _print_json({"op": "add_node", "node": nid})
+        return 0
+
+    if args.action == "wire":
+        evolve_mod.wire(project, args.from_id, args.to, args.kind,
+                        artifact=args.artifact, reason=args.reason, actor=actor)
+        if not args.quiet:
+            print(f"wired {args.from_id} --[{args.kind}]--> {args.to}")
+        return 0
+
+    if args.action == "unwire":
+        evolve_mod.unwire(project, args.from_id, args.to, args.kind,
+                          actor=actor, reason=args.reason)
+        if not args.quiet:
+            print(f"unwired {args.from_id} -[{args.kind}]- {args.to}")
+        return 0
+
+    if args.action == "add-loop":
+        over = [x.strip() for x in (args.over or "").split(",") if x.strip()]
+        if not args.name or not over or not args.until:
+            print("hopewell: evolve add-loop requires --name, --over, --until", file=sys.stderr)
+            return 1
+        nid = evolve_mod.add_loop(project, args.name, over, args.until,
+                                  max_iterations=args.max_iterations, actor=actor)
+        _print_json({"op": "add_loop", "node": nid})
+        return 0
+
+    if args.action == "rollback":
+        try:
+            evolve_mod.rollback(project, args.change_id, actor=actor)
+        except (KeyError, ValueError) as exc:
+            print(f"hopewell: {exc}", file=sys.stderr)
+            return 1
+        if not args.quiet:
+            print(f"rolled back change {args.change_id}")
+        return 0
+
+    if args.action == "list":
+        evolutions = evolve_mod.list_evolutions(project)
+        if args.limit:
+            evolutions = evolutions[: args.limit]
+        _print_json({"count": len(evolutions), "evolutions": evolutions})
+        return 0
+
+    print(f"hopewell: unknown evolve action '{args.action}'", file=sys.stderr)
+    return 1
+
+
+def cmd_extensions(args) -> int:
+    """List project-defined Python processors + YAML components."""
+    project = _project(args)
+    data = extensions_mod.list_loaded(project)
+    if args.action == "list":
+        _print_json(data)
+        return 0
+    if args.action == "check":
+        errs = data.get("errors") or []
+        if args.format == "json":
+            _print_json({"extensions": data, "ok": not errs})
+        else:
+            if errs:
+                print(f"hopewell extensions check: {len(errs)} error(s)")
+                for e in errs:
+                    print(f"  {e.get('file','?')}: {e.get('kind','?')}: {e.get('error','?')}")
+            else:
+                counts = (f"processors={data.get('processors_loaded', 0)}, "
+                          f"components={data.get('components_loaded', 0)}")
+                print(f"hopewell extensions check: clean ({counts})")
+        return 0 if not errs else 1
+    print(f"hopewell: unknown extensions action '{args.action}'", file=sys.stderr)
+    return 1
+
+
+def cmd_web(args) -> int:
+    """Launch the local web UI (requires `hopewell[web]` extras)."""
+    try:
+        from hopewell.web import server as web_server
+    except ImportError as exc:
+        print(f"hopewell web: {exc}", file=sys.stderr)
+        print("hopewell web: install extras with `pip install 'hopewell[web]'`", file=sys.stderr)
+        return 2
+    root = _project(args).root
+    web_server.run(project_root=str(root), port=args.port,
+                   host=args.host, open_browser=args.open_browser)
+    return 0
+
+
 def cmd_migrate(args) -> int:
     """Re-apply every idempotent project-level setup step (merge driver,
     .gitattributes, .claudeignore, CLAUDE.md block) to an existing
@@ -854,6 +956,50 @@ def _build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("migrate", help="Re-apply idempotent setup after a Hopewell upgrade")
     sp.add_argument("--quiet", action="store_true")
     sp.set_defaults(func=cmd_migrate)
+
+    # evolve — LLM-driven graph evolution (v0.6 HW-0014)
+    sp = sub.add_parser("evolve", help="Evolve the work graph (add-node, wire, unwire, add-loop, rollback, list)")
+    sp.add_argument("action", choices=["add-node", "wire", "unwire", "add-loop", "rollback", "list"])
+    # add-node
+    sp.add_argument("--components", default=None, help="(add-node) Comma-separated component list")
+    sp.add_argument("--title", default=None, help="(add-node) Title string")
+    sp.add_argument("--owner", default=None, help="(add-node)")
+    sp.add_argument("--parent", default=None, help="(add-node) Parent node id")
+    # wire / unwire
+    sp.add_argument("--from", dest="from_id", default=None, help="(wire/unwire) Source node id")
+    sp.add_argument("--to", default=None, help="(wire/unwire) Target node id")
+    sp.add_argument("--kind", default=None,
+                    help="(wire/unwire) Edge kind (blocks | produces | consumes | parent | related)")
+    sp.add_argument("--artifact", default=None, help="(wire) Artifact path")
+    # add-loop
+    sp.add_argument("--name", default=None, help="(add-loop)")
+    sp.add_argument("--over", default=None, help="(add-loop) Comma-separated node ids in the loop body")
+    sp.add_argument("--until", default=None, help="(add-loop) Predicate text")
+    sp.add_argument("--max-iterations", dest="max_iterations", type=int, default=10,
+                    help="(add-loop) Default 10")
+    # rollback
+    sp.add_argument("change_id", nargs="?", default=None, help="(rollback) Change id to undo")
+    # list
+    sp.add_argument("--limit", type=int, default=None, help="(list) Cap entries; newest first")
+    # common
+    sp.add_argument("--reason", default=None)
+    sp.add_argument("--quiet", action="store_true")
+    sp.set_defaults(func=cmd_evolve)
+
+    # extensions — custom processors + YAML components (HW-0016)
+    sp = sub.add_parser("extensions", help="Inspect project-defined processors + components")
+    sp.add_argument("action", choices=["list", "check"])
+    sp.add_argument("--format", choices=["text", "json"], default="text")
+    sp.set_defaults(func=cmd_extensions)
+
+    # web — local web UI (HW-0015)
+    sp = sub.add_parser("web", help="Launch the local web UI (requires [web] extras)")
+    sp.add_argument("--port", type=int, default=7420)
+    sp.add_argument("--host", default="127.0.0.1",
+                    help="Bind host (default loopback — override only if you know why)")
+    sp.add_argument("--open", dest="open_browser", action="store_true",
+                    help="Open in the default browser on start")
+    sp.set_defaults(func=cmd_web)
 
     # resume + checkpoint (v0.5.3 session-resume protocol)
     sp = sub.add_parser("resume", help="Show your active work + where you left off on each node")
