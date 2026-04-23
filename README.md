@@ -39,7 +39,7 @@ Three principles make it different:
 ```bash
 pip install hopewell
 # or from source:
-git clone https://github.com/ocgully/hopewell
+git clone https://github.com/ocgully/Hopewell
 pip install -e hopewell/
 
 # Optional extras:

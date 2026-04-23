@@ -48,9 +48,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ocgully/hopewell"
-Repository = "https://github.com/ocgully/hopewell"
-Issues = "https://github.com/ocgully/hopewell/issues"
+Homepage = "https://github.com/ocgully/Hopewell"
+Repository = "https://github.com/ocgully/Hopewell"
+Issues = "https://github.com/ocgully/Hopewell/issues"
 
 [project.scripts]
 hopewell = "hopewell.cli:main"
