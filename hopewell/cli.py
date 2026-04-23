@@ -22,6 +22,7 @@ from hopewell import merge_driver as merge_driver_mod
 from hopewell import network_cli as network_cli_mod
 from hopewell import paths as paths_mod
 from hopewell import resume as resume_mod
+from hopewell import spec_input_cli as spec_cli_mod
 from hopewell import uat as uat_mod
 from hopewell.model import EdgeKind, NodeStatus
 from hopewell.project import CircularDependencyError
@@ -641,6 +642,10 @@ def cmd_query(args) -> int:
         }
     elif args.subject == "claims":
         data = q.claims(project, node_id=args.name)
+    elif args.subject == "consumers":
+        # delegate to spec_input_cli so printing is consistent with spec-ref ls
+        args.spec_path = args.name
+        return spec_cli_mod.cmd_query_consumers(args)
     else:
         print(f"hopewell: unknown query subject '{args.subject}'", file=sys.stderr)
         return 1
@@ -1105,6 +1110,45 @@ def _build_parser() -> argparse.ArgumentParser:
     fp.add_argument("--format", choices=["text", "json"], default="text")
     fp.set_defaults(func=lambda a: flow_cli_mod.cmd_flow_ack(a))
 
+    # spec-ref — quote-by-reference to spec slices (HW-0031, v0.9)
+    sp = sub.add_parser("spec-ref",
+                        help="Spec-input: quote-by-reference links to spec slices")
+    ssub = sp.add_subparsers(dest="spec_cmd", required=True)
+
+    sp_add = ssub.add_parser("add", help="Record a spec-ref on a work item")
+    sp_add.add_argument("node_id")
+    sp_add.add_argument("--path", required=True)
+    sp_add.add_argument("--heading", default=None,
+                        help="Markdown heading text or slug (e.g. '## Flow Network')")
+    sp_add.add_argument("--lines", default=None,
+                        help="Line range, e.g. '45-72'. Mutually exclusive with --heading.")
+    sp_add.add_argument("--why", default=None, help="Why this slice matters")
+    sp_add.add_argument("--format", choices=["text", "json"], default="text")
+    sp_add.set_defaults(func=lambda a: spec_cli_mod.cmd_specref_add(a))
+
+    sp_ls = ssub.add_parser("ls", help="List recorded spec-refs on a work item")
+    sp_ls.add_argument("node_id")
+    sp_ls.add_argument("--format", choices=["text", "json"], default="text")
+    sp_ls.set_defaults(func=lambda a: spec_cli_mod.cmd_specref_ls(a))
+
+    sp_rm = ssub.add_parser("rm", help="Remove a spec-ref slice")
+    sp_rm.add_argument("node_id")
+    sp_rm.add_argument("--path", required=True)
+    sp_rm.add_argument("--heading", default=None)
+    sp_rm.add_argument("--lines", default=None)
+    sp_rm.add_argument("--format", choices=["text", "json"], default="text")
+    sp_rm.set_defaults(func=lambda a: spec_cli_mod.cmd_specref_rm(a))
+
+    sp_dr = ssub.add_parser("drift",
+                            help="Check slices for drift (exit 2 if any drift)")
+    sp_dr.add_argument("node_id", nargs="?", default=None)
+    sp_dr.add_argument("--all", action="store_true",
+                       help="Check every node with spec-input component")
+    sp_dr.add_argument("--patch", action="store_true",
+                       help="Emit unified diff for each drifted slice")
+    sp_dr.add_argument("--format", choices=["text", "json"], default="text")
+    sp_dr.set_defaults(func=lambda a: spec_cli_mod.cmd_specref_drift(a))
+
     # resume + checkpoint (v0.5.3 session-resume protocol)
     sp = sub.add_parser("resume", help="Show your active work + where you left off on each node")
     sp.add_argument("name", nargs="?", default=None,
@@ -1157,7 +1201,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("query", help="Read-only JSON queries")
     sp.add_argument("subject", choices=["ready", "deps", "waves", "critical-path",
                                         "component", "metrics", "graph", "show",
-                                        "attestations", "claims"])
+                                        "attestations", "claims", "consumers"])
     sp.add_argument("name", nargs="?", default=None)
     sp.add_argument("--owner", default=None)
     sp.add_argument("--transitive", action="store_true")
@@ -1166,6 +1210,8 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--since", default=None, help="(attestations) ISO-8601 timestamp; return entries since")
     sp.add_argument("--att-kind", default=None, help="(attestations) filter by kind")
     sp.add_argument("--limit", type=int, default=None, help="(attestations) cap results")
+    sp.add_argument("--slice", dest="slice_spec", default=None,
+                    help="(consumers) heading ('## Foo') or line range ('45-72') to narrow")
     sp.set_defaults(func=cmd_query)
 
     # agent
