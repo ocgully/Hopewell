@@ -17,7 +17,7 @@ query via the CLI or this library, not read `.hopewell/` files directly
 """
 from __future__ import annotations
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 SCHEMA_VERSION = "1"
 
 from hopewell.model import (
@@ -29,13 +29,14 @@ from hopewell.model import (
     Node,
     NodeStatus,
 )
-from hopewell.project import Project
+from hopewell.project import CircularDependencyError, Project
 
 __all__ = [
     "__version__",
     "SCHEMA_VERSION",
     "Component",
     "ComponentRegistry",
+    "CircularDependencyError",
     "Edge",
     "EdgeKind",
     "Event",

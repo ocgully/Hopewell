@@ -22,6 +22,7 @@ from hopewell import paths as paths_mod
 from hopewell import resume as resume_mod
 from hopewell import uat as uat_mod
 from hopewell.model import EdgeKind, NodeStatus
+from hopewell.project import CircularDependencyError
 
 
 # ---------------------------------------------------------------------------
@@ -222,8 +223,13 @@ def cmd_link(args) -> int:
         print(f"hopewell: unknown edge kind '{args.kind}' — "
               f"expected one of {[e.value for e in EdgeKind]}", file=sys.stderr)
         return 1
-    edge = project.link(args.from_id, kind, args.to, artifact=args.artifact,
-                        reason=args.reason, actor=_actor_from_env())
+    try:
+        edge = project.link(args.from_id, kind, args.to, artifact=args.artifact,
+                            reason=args.reason, actor=_actor_from_env())
+    except CircularDependencyError as exc:
+        # Surface the cycle path; let the caller decide what to break.
+        print(f"hopewell: {exc}", file=sys.stderr)
+        return 1
     if not args.quiet:
         print(f"{edge.from_id} --[{edge.kind.value if hasattr(edge.kind,'value') else edge.kind}]--> {edge.to_id}")
     return 0
@@ -466,8 +472,12 @@ def cmd_evolve(args) -> int:
         return 0
 
     if args.action == "wire":
-        evolve_mod.wire(project, args.from_id, args.to, args.kind,
-                        artifact=args.artifact, reason=args.reason, actor=actor)
+        try:
+            evolve_mod.wire(project, args.from_id, args.to, args.kind,
+                            artifact=args.artifact, reason=args.reason, actor=actor)
+        except CircularDependencyError as exc:
+            print(f"hopewell: {exc}", file=sys.stderr)
+            return 1
         if not args.quiet:
             print(f"wired {args.from_id} --[{args.kind}]--> {args.to}")
         return 0

@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from hopewell import attestation as att_mod
 from hopewell import config as config_mod
@@ -348,6 +348,15 @@ class Project:
         if kind in (EdgeKind.blocks, EdgeKind.parent, EdgeKind.related) and not self.has_node(to_id):
             raise FileNotFoundError(f"node not found: {to_id}")
 
+        # v0.6.1: cycle detection — blocks edges are the only execution-ordering
+        # constraint, so they're the only kind that can create execution cycles.
+        # Refuse the edge with a typed error and a path; the caller's job is to
+        # break the cycle (consult the orchestrator to replan into smaller chunks).
+        if kind == EdgeKind.blocks:
+            cycle = self._would_create_cycle(from_id, to_id)
+            if cycle:
+                raise CircularDependencyError(from_id=from_id, to_id=to_id, cycle=cycle)
+
         src = self.node(from_id)
         if kind == EdgeKind.blocks:
             if to_id not in src.blocks:
@@ -407,6 +416,50 @@ class Project:
         self._attest(kind="node.close", node=node_id, actor=actor, commit=commit,
                      reason=reason, evidence=evidence or None)
         return self.node(node_id)
+
+    # ---- cycle detection (v0.6.1) ----
+
+    def _would_create_cycle(self, from_id: str, to_id: str) -> List[str]:
+        """If adding `from_id --[blocks]--> to_id` would create a cycle in the
+        existing blocks-graph, return the path that closes it. Empty list
+        otherwise.
+
+        Detection: walk the existing blocks graph starting from `to_id`. If we
+        reach `from_id`, there's already a path `to_id -> ... -> from_id`, so
+        adding `from_id -> to_id` closes the loop.
+        """
+        if from_id == to_id:
+            return [from_id]
+        # Build the current blocks-graph cheaply (only the edge.kind we care about).
+        nodes = {n.id: n for n in self.all_nodes()}
+        if to_id not in nodes:
+            return []
+        visited: Set[str] = set()
+        # BFS with parent tracking so we can reconstruct the path
+        parent: Dict[str, str] = {to_id: ""}
+        frontier: List[str] = [to_id]
+        while frontier:
+            cur = frontier.pop(0)
+            if cur == from_id:
+                # Reconstruct path from `to_id` back to `from_id`
+                path: List[str] = []
+                node_id: Optional[str] = cur
+                while node_id:
+                    path.append(node_id)
+                    nxt = parent.get(node_id)
+                    node_id = nxt if nxt else None
+                return list(reversed(path))
+            if cur in visited:
+                continue
+            visited.add(cur)
+            cur_node = nodes.get(cur)
+            if not cur_node:
+                continue
+            for nxt in cur_node.blocks:
+                if nxt not in visited:
+                    parent.setdefault(nxt, cur)
+                    frontier.append(nxt)
+        return []
 
     # ---- integrity ----
 
@@ -494,6 +547,33 @@ def _find_cycles(adj: Dict[str, List[str]]) -> List[List[str]]:
 def _now() -> str:
     import datetime
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class CircularDependencyError(ValueError):
+    """Raised when adding an edge would create a cycle in the blocks-graph.
+
+    The error carries the would-be edge plus the existing path that closes
+    the cycle so the caller (or the orchestrator they consult) can see
+    exactly what to break up.
+    """
+
+    def __init__(self, *, from_id: str, to_id: str, cycle: List[str]) -> None:
+        # `cycle` is the existing path from `to_id` reaching `from_id`. Adding
+        # the proposed edge `from_id -> to_id` would close the loop, so the
+        # full circle reads: cycle (to_id -> ... -> from_id) -> to_id.
+        if from_id == to_id:
+            full = f"{from_id} -> {from_id}"
+        else:
+            full = " -> ".join(cycle) + f" -> {to_id}"
+        super().__init__(
+            f"adding `blocks` edge {from_id} -> {to_id} would create a cycle: "
+            f"{full}. Hopewell can't process circular dependencies. Consult "
+            f"the orchestrator to break this work into smaller chunks before "
+            f"linking."
+        )
+        self.from_id = from_id
+        self.to_id = to_id
+        self.cycle = cycle
 
 
 def _has_project_init_event(events_path: Path) -> bool:
