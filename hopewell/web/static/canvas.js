@@ -144,7 +144,7 @@ function documentPath(w, h) {
 // ---------------------------------------------------------------------------
 
 function buildLayout(executors, routes, overrides) {
-  const g = new dagre.graphlib.Graph({ compound: true });
+  const g = new dagre.graphlib.Graph({ compound: true, multigraph: true });
   g.setGraph({
     rankdir: "LR",
     ranksep: 70,
