@@ -13,10 +13,13 @@ from typing import Any, List, Optional
 from hopewell import __version__, SCHEMA_VERSION
 from hopewell import attestation as att_mod
 from hopewell import claim as claim_mod
+from hopewell import claude_hooks_cli as ch_cli_mod
+from hopewell import comment_cli as comment_cli_mod
 from hopewell import events as events_mod
 from hopewell import evolve as evolve_mod
 from hopewell import extensions as extensions_mod
 from hopewell import flow_cli as flow_cli_mod
+from hopewell import flow_trace_cli as flow_trace_cli_mod
 from hopewell import hooks as hooks_mod
 from hopewell import merge_driver as merge_driver_mod
 from hopewell import network_cli as network_cli_mod
@@ -655,6 +658,9 @@ def cmd_query(args) -> int:
     elif args.subject == "queue-staleness":
         from hopewell import cycle_time_cli as ct_cli
         return ct_cli.cmd_query_queue_staleness(args)
+    elif args.subject == "markov":
+        from hopewell import markov_cli as mk_cli
+        return mk_cli.cmd_query_markov(args)
     else:
         print(f"hopewell: unknown query subject '{args.subject}'", file=sys.stderr)
         return 1
@@ -827,15 +833,24 @@ def cmd_github(args) -> int:
 
 def cmd_hooks(args) -> int:
     project = _project(args)
+    claude_code = bool(getattr(args, "claude_code", False))
     if args.action == "install":
         path = hooks_mod.install(project.root)
         if not args.quiet:
             print(f"Installed {path}")
+        if claude_code:
+            rc = ch_cli_mod.cmd_install_claude_code(args)
+            if rc != 0:
+                return rc
         return 0
     if args.action == "uninstall":
         ok = hooks_mod.uninstall(project.root)
         if not args.quiet:
             print("Uninstalled." if ok else "No hopewell hook found.")
+        if claude_code:
+            rc = ch_cli_mod.cmd_uninstall_claude_code(args)
+            if rc != 0:
+                return rc
         return 0
     print(f"hopewell: unknown hooks action '{args.action}'", file=sys.stderr)
     return 1
@@ -1119,6 +1134,15 @@ def _build_parser() -> argparse.ArgumentParser:
     fp.add_argument("--format", choices=["text", "json"], default="text")
     fp.set_defaults(func=lambda a: flow_cli_mod.cmd_flow_ack(a))
 
+    # flow trace — chronological traversal of a work item (HW-0035)
+    fp = fsub.add_parser("trace",
+        help="Show a work item's traversal (chronological, across executors)")
+    fp.add_argument("node_id")
+    fp.add_argument("--format", choices=["text", "json", "mermaid"], default="text")
+    fp.add_argument("--compact", action="store_true",
+                    help="(text) drop header/footer; just the event lines")
+    fp.set_defaults(func=lambda a: flow_trace_cli_mod.cmd_flow_trace(a))
+
     # spec-ref — quote-by-reference to spec slices (HW-0031, v0.9)
     sp = sub.add_parser("spec-ref",
                         help="Spec-input: quote-by-reference links to spec slices")
@@ -1157,6 +1181,66 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="Emit unified diff for each drifted slice")
     sp_dr.add_argument("--format", choices=["text", "json"], default="text")
     sp_dr.set_defaults(func=lambda a: spec_cli_mod.cmd_specref_drift(a))
+
+    # comment — comment threads on nodes + spec files (HW-0033, v0.13)
+    cp = sub.add_parser("comment",
+        help="Comment threads on nodes or spec files (post/ls/resolve/promote/...)")
+    csub = cp.add_subparsers(dest="comment_cmd", required=True)
+
+    cp_post = csub.add_parser("post", help="Post a new comment")
+    cp_post.add_argument("target")
+    g = cp_post.add_mutually_exclusive_group()
+    g.add_argument("--anchor", choices=["whole-file"], default=None)
+    g.add_argument("--heading", default=None)
+    g.add_argument("--lines", default=None)
+    cp_post.add_argument("--explicit-anchor", default=None)
+    cp_post.add_argument("--body", required=True)
+    cp_post.add_argument("--format", choices=["text", "json"], default="text")
+    cp_post.set_defaults(func=lambda a: comment_cli_mod.cmd_comment_post(a))
+
+    cp_ls = csub.add_parser("ls", help="List threads for a target")
+    cp_ls.add_argument("target")
+    cp_ls.add_argument("--status", choices=["open", "resolved", "all"], default="open")
+    cp_ls.add_argument("--format", choices=["text", "json"], default="text")
+    cp_ls.set_defaults(func=lambda a: comment_cli_mod.cmd_comment_ls(a))
+
+    cp_res = csub.add_parser("resolve", help="Resolve a comment thread")
+    cp_res.add_argument("comment_id")
+    cp_res.add_argument("--reason", default=None)
+    cp_res.add_argument("--format", choices=["text", "json"], default="text")
+    cp_res.set_defaults(func=lambda a: comment_cli_mod.cmd_comment_resolve(a))
+
+    cp_reo = csub.add_parser("reopen", help="Reopen a resolved comment thread")
+    cp_reo.add_argument("comment_id")
+    cp_reo.add_argument("--format", choices=["text", "json"], default="text")
+    cp_reo.set_defaults(func=lambda a: comment_cli_mod.cmd_comment_reopen(a))
+
+    cp_edit = csub.add_parser("edit", help="Edit a comment body")
+    cp_edit.add_argument("comment_id")
+    cp_edit.add_argument("--body", required=True)
+    cp_edit.add_argument("--format", choices=["text", "json"], default="text")
+    cp_edit.set_defaults(func=lambda a: comment_cli_mod.cmd_comment_edit(a))
+
+    cp_pro = csub.add_parser("promote", help="Promote a thread to a review node")
+    cp_pro.add_argument("comment_id")
+    cp_pro.add_argument("--title", required=True)
+    cp_pro.add_argument("--body-prefix", default="")
+    cp_pro.add_argument("--format", choices=["text", "json"], default="text")
+    cp_pro.set_defaults(func=lambda a: comment_cli_mod.cmd_comment_promote(a))
+
+    cp_orph = csub.add_parser("orphans",
+        help="Threads whose anchors failed reconciliation")
+    cp_orph.add_argument("--format", choices=["text", "json"], default="text")
+    cp_orph.set_defaults(func=lambda a: comment_cli_mod.cmd_comment_orphans(a))
+
+    # claude-hooks — dispatcher for Claude Code hook events (HW-0040)
+    ch = sub.add_parser("claude-hooks",
+        help="Dispatch a Claude Code hook event (reads JSON from stdin)")
+    ch.add_argument("event", choices=[
+        "session-start", "session-end", "user-prompt-submit",
+        "pre-tool-use", "post-tool-use", "stop", "subagent-stop",
+    ])
+    ch.set_defaults(func=ch_cli_mod.cmd_claude_hooks_dispatch)
 
     # resume + checkpoint (v0.5.3 session-resume protocol)
     sp = sub.add_parser("resume", help="Show your active work + where you left off on each node")
@@ -1211,7 +1295,8 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("subject", choices=["ready", "deps", "waves", "critical-path",
                                         "component", "metrics", "graph", "show",
                                         "attestations", "claims", "consumers",
-                                        "cycle-time", "quality", "queue-staleness"])
+                                        "cycle-time", "quality", "queue-staleness",
+                                        "markov"])
     sp.add_argument("name", nargs="?", default=None)
     sp.add_argument("--owner", default=None)
     sp.add_argument("--transitive", action="store_true")
@@ -1230,6 +1315,17 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="(quality) tabulate across all executors")
     sp.add_argument("--threshold", default=None,
                     help="(queue-staleness) override default threshold (e.g. 24h, 1d)")
+    sp.add_argument("--window", default="30d",
+                    help="(markov) time window (all|30d|7d|1d|release-tag)")
+    sp.add_argument("--no-singletons", dest="include_singletons",
+                    action="store_false", default=True,
+                    help="(markov) exclude single-traversal items")
+    sp.add_argument("--top", type=int, default=10,
+                    help="(markov) top-N rework edges to list in text mode")
+    sp.add_argument("--rank-by", dest="by_metric",
+                    choices=["probability", "count", "time_weight"],
+                    default="probability",
+                    help="(markov) ranking metric for --top table")
     sp.set_defaults(func=cmd_query)
 
     # agent
@@ -1290,6 +1386,14 @@ def _build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("hooks", help="Install/uninstall the git post-commit hook")
     sp.add_argument("action", choices=["install", "uninstall"])
     sp.add_argument("--quiet", action="store_true")
+    sp.add_argument("--claude-code", dest="claude_code", action="store_true",
+                    help="(HW-0040) Also install/uninstall Claude Code hooks in ~/.claude/settings.json")
+    sp.add_argument("--dry-run", action="store_true",
+                    help="(--claude-code) Print settings.json mutations without writing")
+    sp.add_argument("--settings-path", default=None,
+                    help="(--claude-code) Override settings.json path (testing)")
+    sp.add_argument("--scope", choices=["user", "project"], default="user",
+                    help="(--claude-code) user=~/.claude, project=./.claude")
     sp.set_defaults(func=cmd_hooks)
 
     # hook-on-commit (internal — invoked by the hook script)
