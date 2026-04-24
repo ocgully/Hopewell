@@ -540,7 +540,16 @@ function InnerCanvas({ onSelect, journeyId, journeyBus,
                        journey, error }) {
   const [selected, setSelected] = useState(null);
   const [tickFrame, setTickFrame] = useState(0);
+  const [hoveredEdge, setHoveredEdge] = useState(null);   // "from|to" key or null
   const rf = useReactFlow();
+
+  // Endpoints of the currently-hovered edge — used to light up the
+  // source and target nodes when mousing over a connection.
+  const hoverEndpoints = useMemo(() => {
+    if (!hoveredEdge) return new Set();
+    const [from, to] = hoveredEdge.split("|");
+    return new Set([from, to]);
+  }, [hoveredEdge]);
 
   // Journey highlight sets.
   const journeyEdges = useMemo(() => {
@@ -590,11 +599,11 @@ function InnerCanvas({ onSelect, journeyId, journeyBus,
           saturation: activityByExec.sat[ex.id] || 0.2,
           depth: slot.inbox_depth || 0,
           active: slot.active_depth || 0,
-          highlighted: journeyNodes.has(ex.id),
+          highlighted: journeyNodes.has(ex.id) || hoverEndpoints.has(ex.id),
         },
       };
     });
-  }, [network, layout, packets, activityByExec, journeyNodes]);
+  }, [network, layout, packets, activityByExec, journeyNodes, hoverEndpoints]);
 
   // Build React Flow edges from routes.
   //
@@ -811,6 +820,8 @@ function InnerCanvas({ onSelect, journeyId, journeyBus,
       selectNodesOnDrag: false,
       onNodeClick,
       onEdgeClick,
+      onEdgeMouseEnter: (_e, edge) => setHoveredEdge(edge.data?.key || null),
+      onEdgeMouseLeave: () => setHoveredEdge(null),
       onPaneClick,
       fitView: true,
       fitViewOptions: { padding: 0.1 },

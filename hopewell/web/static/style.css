@@ -233,7 +233,10 @@ footer.bottom {
   outline: none;
 }
 .fx-rf-node.fx-selected   { filter: drop-shadow(0 0 3px var(--accent)); }
-.fx-rf-node.fx-highlighted { filter: drop-shadow(0 0 4px var(--warn)); }
+.fx-rf-node.fx-highlighted {
+  filter: drop-shadow(0 0 6px #ffffff) brightness(1.15);
+  transition: filter 120ms ease-out;
+}
 .fx-rf-label {
   flex: 1;
   font-weight: 500;
