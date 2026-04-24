@@ -646,6 +646,15 @@ def cmd_query(args) -> int:
         # delegate to spec_input_cli so printing is consistent with spec-ref ls
         args.spec_path = args.name
         return spec_cli_mod.cmd_query_consumers(args)
+    elif args.subject == "cycle-time":
+        from hopewell import cycle_time_cli as ct_cli
+        return ct_cli.cmd_query_cycle_time(args)
+    elif args.subject == "quality":
+        from hopewell import cycle_time_cli as ct_cli
+        return ct_cli.cmd_query_quality(args)
+    elif args.subject == "queue-staleness":
+        from hopewell import cycle_time_cli as ct_cli
+        return ct_cli.cmd_query_queue_staleness(args)
     else:
         print(f"hopewell: unknown query subject '{args.subject}'", file=sys.stderr)
         return 1
@@ -1201,7 +1210,8 @@ def _build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("query", help="Read-only JSON queries")
     sp.add_argument("subject", choices=["ready", "deps", "waves", "critical-path",
                                         "component", "metrics", "graph", "show",
-                                        "attestations", "claims", "consumers"])
+                                        "attestations", "claims", "consumers",
+                                        "cycle-time", "quality", "queue-staleness"])
     sp.add_argument("name", nargs="?", default=None)
     sp.add_argument("--owner", default=None)
     sp.add_argument("--transitive", action="store_true")
@@ -1212,6 +1222,14 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--limit", type=int, default=None, help="(attestations) cap results")
     sp.add_argument("--slice", dest="slice_spec", default=None,
                     help="(consumers) heading ('## Foo') or line range ('45-72') to narrow")
+    sp.add_argument("--component", default=None,
+                    help="(cycle-time) filter aggregate to nodes carrying this component")
+    sp.add_argument("--done-since", default=None,
+                    help="(cycle-time) only include nodes done at/after this ISO ts")
+    sp.add_argument("--scope-all", dest="scope_all", action="store_true",
+                    help="(quality) tabulate across all executors")
+    sp.add_argument("--threshold", default=None,
+                    help="(queue-staleness) override default threshold (e.g. 24h, 1d)")
     sp.set_defaults(func=cmd_query)
 
     # agent
