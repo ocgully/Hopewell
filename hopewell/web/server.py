@@ -224,12 +224,14 @@ def _state_snapshot(project) -> Dict[str, Any]:
     except Exception:
         waves_payload = {"waves": [], "critical_path": [], "depth": 0, "max_width": 0}
 
+    from hopewell import __version__ as hw_version
     return {
         "project": {
             "name": project.cfg.name,
             "root": str(project.root),
             "id_prefix": project.cfg.id_prefix,
         },
+        "hopewell_version": hw_version,
         "systems": roots,
         "nodes": graph["nodes"],
         "edges": graph["edges"],

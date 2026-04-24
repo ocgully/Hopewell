@@ -155,6 +155,8 @@ function App() {
     if (el) el.textContent = state.project.name ? ` — ${state.project.name}` : "";
     const m = document.getElementById("metric-total");
     if (m) m.textContent = `${state.nodes.length} node${state.nodes.length === 1 ? "" : "s"}`;
+    const v = document.getElementById("hopewell-version");
+    if (v) v.textContent = state.hopewell_version ? `v${state.hopewell_version}` : "";
     const d = document.getElementById("status-dot");
     if (d) {
       d.classList.toggle("connected", sseOk);
