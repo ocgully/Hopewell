@@ -580,6 +580,7 @@ function InnerCanvas({ onSelect, journeyId, journeyBus,
 
   // Build React Flow nodes from network + layout.
   const rfNodes = useMemo(() => {
+    if (typeof console !== "undefined") console.count("rfNodes rebuild");
     if (!network || !layout) return [];
     return network.executors.map((ex) => {
       const pos = layout.positions[ex.id] || { x: 0, y: 0, width: 180, height: 52 };
