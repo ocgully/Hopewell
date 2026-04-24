@@ -204,11 +204,23 @@ function buildLayout(executors, routes, overrides) {
     // back to a straight line between centres. Good enough for a small
     // flow network, and the override itself implies the user took charge
     // of positioning.
-    let points = edgeData.points;
-    const srcOver = overrides && overrides[e.v];
-    const tgtOver = overrides && overrides[e.w];
-    if (srcOver || tgtOver) {
-      points = [{ x: src.x, y: src.y }, { x: tgt.x, y: tgt.y }];
+    let points = edgeData.points ? edgeData.points.map((p) => ({ x: p.x, y: p.y })) : [];
+    // Trim the tail of the edge so the arrow lands INSIDE the target shape,
+    // not at dagre's rect boundary. Diamonds/hexagons recede from the rect
+    // at non-axis angles; without this the arrow hangs in empty space.
+    if (points.length >= 2) {
+      const inset = 14;
+      const last = points[points.length - 1];
+      const prev = points[points.length - 2];
+      const dx = last.x - prev.x;
+      const dy = last.y - prev.y;
+      const len = Math.hypot(dx, dy) || 1;
+      if (len > inset) {
+        points[points.length - 1] = {
+          x: last.x - (dx / len) * inset,
+          y: last.y - (dy / len) * inset,
+        };
+      }
     }
     edges.push({
       from: e.v,
@@ -287,7 +299,7 @@ function pointAtT(points, t) {
 // ---------------------------------------------------------------------------
 
 function NodeShape({ pos, executor, kind, selected, saturation, depth,
-                    active, onClick, onPointerDown }) {
+                    active, onClick }) {
   const { width, height } = pos;
   const { base, accent } = hueFor(kind);
   const fill = kind === "group" ? "transparent" : mixWithBg(base, saturation);
@@ -361,8 +373,8 @@ function NodeShape({ pos, executor, kind, selected, saturation, depth,
     tabIndex: 0,
     role: "button",
     "aria-label": `${kind} ${executor.id}: ${label}`,
-    onClick,
-    onPointerDown,
+    onClick: (e) => { e.stopPropagation(); onClick && onClick(e); },
+    style: "cursor: pointer",
   },
     shape,
     initialsLabel && h("g", { class: "fx-avatar", transform: `translate(${-width / 2 + 16}, 0)` },
@@ -570,7 +582,6 @@ export function CanvasView({ onSelect, journeyId, journeyBus }) {
   const [journey, setJourney] = useState(null);
 
   const svgRef = useRef(null);
-  const dragRef = useRef(null);
 
   // Initial load.
   useEffect(() => {
@@ -733,21 +744,8 @@ export function CanvasView({ onSelect, journeyId, journeyBus }) {
         x: p.base.x + (e.clientX - p.startX),
         y: p.base.y + (e.clientY - p.startY),
       });
-      return;
     }
-    const d = dragRef.current;
-    if (d && d.pointerId === e.pointerId && layout) {
-      const dx = (e.clientX - d.startX) / transform.k;
-      const dy = (e.clientY - d.startY) / transform.k;
-      // Update layout positions in-place; we save on pointer-up.
-      const pos = layout.positions[d.id];
-      if (pos) {
-        pos.x = d.baseX + dx;
-        pos.y = d.baseY + dy;
-        setTickFrame((n) => n + 1);
-      }
-    }
-  }, [transform, layout]);
+  }, []);
 
   const onSvgPointerUp = useCallback((e) => {
     const p = panRef.current;
@@ -755,15 +753,7 @@ export function CanvasView({ onSelect, journeyId, journeyBus }) {
       panRef.current = null;
       try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
     }
-    const d = dragRef.current;
-    if (d && d.pointerId === e.pointerId) {
-      dragRef.current = null;
-      if (layout && layout.positions[d.id]) {
-        const pos = layout.positions[d.id];
-        postLayout({ [d.id]: { x: pos.x, y: pos.y } }).catch(() => {});
-      }
-    }
-  }, [layout]);
+  }, []);
 
   // Keyboard: +/- zoom, 0 reset, tab cycle, arrows pan.
   useEffect(() => {
@@ -798,20 +788,6 @@ export function CanvasView({ onSelect, journeyId, journeyBus }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // --- drag a node -------------------------------------------------------
-  const onNodePointerDown = useCallback((e, id) => {
-    if (!layout) return;
-    const pos = layout.positions[id];
-    if (!pos) return;
-    e.stopPropagation();
-    dragRef.current = {
-      id, pointerId: e.pointerId,
-      startX: e.clientX, startY: e.clientY,
-      baseX: pos.x, baseY: pos.y,
-    };
-    try { e.currentTarget.ownerSVGElement.setPointerCapture(e.pointerId); } catch { /* ignore */ }
-  }, [layout]);
-
   // --- selection handlers -----------------------------------------------
   const selectNode = (id) => {
     setSelected({ kind: "executor", id });
@@ -824,15 +800,6 @@ export function CanvasView({ onSelect, journeyId, journeyBus }) {
   const selectEdge = (edge) => {
     setSelected({ kind: "edge", id: `${edge.from}|${edge.to}|${edge.route?.condition || ""}`,
                   edge });
-  };
-
-  // Reset layout.
-  const onResetLayout = async () => {
-    try {
-      await resetLayoutApi();
-      const n = await fetchNetwork();
-      setNetwork(n);
-    } catch (e) { /* ignore */ }
   };
 
   // --- early-returns -----------------------------------------------------
@@ -897,8 +864,6 @@ export function CanvasView({ onSelect, journeyId, journeyBus }) {
         paused ? "▶ resume" : "⏸ pause"),
       h("button", { onClick: () => setTransform({ x: 40, y: 40, k: 0.9 }),
         title: "Reset view (0)" }, "reset view"),
-      h("button", { onClick: onResetLayout,
-        title: "Discard manual drags and re-run dagre" }, "reset layout"),
       h("span", { class: "fx-toolbar-hint muted" },
         `zoom ${Math.round(transform.k * 100)}%`),
       journeyId && h("span", { class: "fx-toolbar-journey" },
@@ -969,7 +934,6 @@ export function CanvasView({ onSelect, journeyId, journeyBus }) {
             depth: slot.inbox_depth || 0,
             active: slot.active_depth || 0,
             onClick: (e) => { e.stopPropagation(); selectNode(ex.id); },
-            onPointerDown: (e) => onNodePointerDown(e, ex.id),
           });
         }),
       ),
