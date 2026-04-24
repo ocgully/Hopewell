@@ -24,6 +24,7 @@ from hopewell import hooks as hooks_mod
 from hopewell import merge_driver as merge_driver_mod
 from hopewell import network_cli as network_cli_mod
 from hopewell import paths as paths_mod
+from hopewell import reconciliation_cli as recon_cli_mod
 from hopewell import resume as resume_mod
 from hopewell import spec_input_cli as spec_cli_mod
 from hopewell import uat as uat_mod
@@ -1232,6 +1233,36 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Threads whose anchors failed reconciliation")
     cp_orph.add_argument("--format", choices=["text", "json"], default="text")
     cp_orph.set_defaults(func=lambda a: comment_cli_mod.cmd_comment_orphans(a))
+
+    # reconcile — downstream-review nodes for spec-drift reconciliation (HW-0034)
+    rp = sub.add_parser("reconcile",
+        help="Reconciliation flow: queue/resolve downstream-review nodes for spec drift")
+    rsub = rp.add_subparsers(dest="reconcile_cmd", required=True)
+
+    rp_q = rsub.add_parser("queue",
+        help="Trigger A: create review nodes for consumers of a drifted slice")
+    rp_q.add_argument("spec_path")
+    rp_q.add_argument("--heading", default=None)
+    rp_q.add_argument("--lines", default=None)
+    rp_q.add_argument("--dry-run", action="store_true")
+    rp_q.add_argument("--format", choices=["text", "json"], default="text")
+    rp_q.set_defaults(func=lambda a: recon_cli_mod.cmd_reconcile_queue(a))
+
+    rp_ls = rsub.add_parser("ls", help="List downstream-review nodes")
+    rp_ls.add_argument("--consumer", default=None)
+    rp_ls.add_argument("--spec", dest="spec_path", default=None)
+    rp_ls.add_argument("--status", choices=["open", "resolved", "all"], default="open")
+    rp_ls.add_argument("--format", choices=["text", "json"], default="text")
+    rp_ls.set_defaults(func=lambda a: recon_cli_mod.cmd_reconcile_ls(a))
+
+    rp_r = rsub.add_parser("resolve", help="Close a review with one of four outcomes")
+    rp_r.add_argument("review_id")
+    rp_r.add_argument("--outcome", required=True,
+        choices=["no-impact", "update-in-scope", "update-out-of-scope", "spec-revert"])
+    rp_r.add_argument("--notes", default=None)
+    rp_r.add_argument("--followup-title", dest="followup_title", default=None)
+    rp_r.add_argument("--format", choices=["text", "json"], default="text")
+    rp_r.set_defaults(func=lambda a: recon_cli_mod.cmd_reconcile_resolve(a))
 
     # claude-hooks — dispatcher for Claude Code hook events (HW-0040)
     ch = sub.add_parser("claude-hooks",
