@@ -1,0 +1,15 @@
+# Claude Code session-level hooks contributed by Hopewell.
+#
+# These are merged into .claude/settings.json by Flotilla under the
+# `flotilla:managed.hopewell` sentinel block. User-authored hooks in
+# the same file are preserved across upgrades.
+#
+# The ProjectStart hook runs `hopewell resume` so every fresh Claude
+# Code session sees the active claims + ready queue. The PreToolUse
+# hook reminds the model not to read .hopewell/ directly.
+
+hooks:
+  SessionStart:
+    - hooks:
+        - type: command
+          command: hopewell resume --quiet || true

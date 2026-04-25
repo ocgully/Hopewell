@@ -8,6 +8,10 @@ components riding a DAG that agents can execute.
 Named after a ship in *Gulliver's Travels*. Work *sails* through a network
 of ports (nodes), carrying cargo (artifacts).
 
+> **Flotilla plugin.** Hopewell ships a `plugin/` directory + `flotilla.yaml`
+> at the repo root, so downstream projects can install it via
+> `flotilla install hopewell`. See [`plugin/README.md`](plugin/README.md).
+
 > **Status: v0.5.** CLI + Python library + basic orchestrator + GitHub
 > ingestion + attestation ledger + agent fingerprinting + **coordination
 > (branch-as-claim + JSONL merge driver)**. Web UI and LLM-driven graph
