@@ -1032,7 +1032,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="taskflow",
                                 description="taskflow — flow-framework tool (formerly hopewell).")
     p.add_argument("--version", action="version",
-                   version=f"hopewell {__version__} (schema {SCHEMA_VERSION})")
+                   version=f"taskflow {__version__} (schema {SCHEMA_VERSION})")
     p.add_argument("--project-root", default=None)
 
     sub = p.add_subparsers(dest="command", required=True)
