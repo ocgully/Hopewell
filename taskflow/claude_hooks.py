@@ -1,7 +1,7 @@
-r"""Claude Code hook entry points for Hopewell (HW-0040).
+r"""Claude Code hook entry points for TaskFlow (HW-0040).
 
 Wires the Claude Code agent runtime (SessionStart / PreToolUse /
-PostToolUse / Stop / UserPromptSubmit / SubagentStop) into Hopewell's
+PostToolUse / Stop / UserPromptSubmit / SubagentStop) into TaskFlow's
 flow runtime, so that `flow.enter` / `flow.leave` events fire
 automatically whenever a Claude agent picks up or finishes work on a
 node — without the human having to run `taskflow flow push/ack/enter/
@@ -10,10 +10,10 @@ leave` by hand.
 Category-C territory (HW-0050 boundary note)
 --------------------------------------------
 
-This module is the ONLY place where Hopewell does "Category C" hook
+This module is the ONLY place where TaskFlow does "Category C" hook
 work: **context injection into a running AI agent session**. The
 `taskflow hooks install --full` git hooks (HW-0050, see
-`hopewell/hooks.py`) deliberately do NOT do Category C — a git hook
+`taskflow/hooks.py`) deliberately do NOT do Category C — a git hook
 runs in the shell without any knowledge that a Claude Code session is
 attached, so it can't prepend Pedia context, resume active claims, or
 inject spec slices into an agent prompt. Those injections require the
@@ -22,7 +22,7 @@ Claude Code runtime (SessionStart / UserPromptSubmit / PreToolUse).
 So:
 
   * Categories A (bookkeeping) + B (declared gates) live in git hooks
-    (`hopewell/hooks.py`, templates in `hopewell/hook_templates.py`).
+    (`taskflow/hooks.py`, templates in `taskflow/hook_templates.py`).
   * Category C (context injection) lives here.
   * Category D (routing) and E (judgment) stay with the orchestrator.
 
@@ -37,7 +37,8 @@ Design decisions (document, then locked in)
 
    Hybrid, in precedence order:
 
-     a. **Active-marker file** `.hopewell/claude/active.json`
+     a. **Active-marker file** `.taskflow/claude/active.json` (or
+        `.hopewell/claude/active.json` on legacy stores)
         Structure:
           {
             "session_id":  "abc123...",     # Claude Code session id
@@ -70,7 +71,7 @@ Design decisions (document, then locked in)
 
 3. **Event mapping**
 
-     Claude Code event      | Hopewell action
+     Claude Code event      | TaskFlow action
      -----------------------|---------------------------------------
      SessionStart           | (no-op by default; write session marker
                             |  if `.hopewell/claude/` exists)
@@ -89,7 +90,7 @@ Design decisions (document, then locked in)
 
    Errors (malformed input, project not found, unknown executor):
    swallowed. Hooks MUST exit 0 and print nothing — Claude Code hooks
-   should never block the agent loop, and Hopewell runs on top of it.
+   should never block the agent loop, and TaskFlow runs on top of it.
 
 --------------------------------------------------------------------
 Entry points
@@ -98,11 +99,11 @@ Entry points
 Each function below:
   * reads the hook JSON from stdin
   * returns an int exit code (0 always — we fail silent)
-  * emits zero or more flow events via `hopewell.flow`
-  * is safe to run outside a hopewell project (it just returns 0)
+  * emits zero or more flow events via `taskflow.flow`
+  * is safe to run outside a taskflow project (it just returns 0)
 
-They are dispatched from `hopewell.claude_hooks_cli` (see that module
-for argparse wiring; `hopewell/cli.py` is integrated separately).
+They are dispatched from `taskflow.claude_hooks_cli` (see that module
+for argparse wiring; `taskflow/cli.py` is integrated separately).
 
 Stdlib only.
 """
@@ -155,10 +156,10 @@ def _now() -> str:
 
 
 def _try_load_project(cwd: Optional[Path] = None):
-    """Load a Hopewell Project from cwd (or os.getcwd()).
+    """Load a TaskFlow Project from cwd (or os.getcwd()).
 
-    Returns None silently if no `.hopewell/` is found or loading fails.
-    Never raises.
+    Returns None silently if no `.taskflow/` (or legacy `.hopewell/`)
+    is found or loading fails. Never raises.
     """
     try:
         from taskflow.project import Project
@@ -279,7 +280,7 @@ def resolve_executor(payload: Dict[str, Any], project, fallback: str = "agent") 
     try:
         cfg = getattr(project, "config", None)
         if cfg is not None:
-            # Config object exposes .core.default_executor in newer hopewell;
+            # Config object exposes .core.default_executor in newer taskflow;
             # fall back to raw dict access defensively.
             val = None
             core = getattr(cfg, "core", None)
@@ -294,7 +295,7 @@ def resolve_executor(payload: Dict[str, Any], project, fallback: str = "agent") 
 
 
 # ---------------------------------------------------------------------------
-# active-marker file — .hopewell/claude/active.json
+# active-marker file — .taskflow/claude/active.json (or legacy .hopewell/claude/active.json)
 # ---------------------------------------------------------------------------
 
 
@@ -430,7 +431,7 @@ def _session_start_preamble(project) -> str:
 
     Claude Code's SessionStart hook injects the hook command's stdout
     into the session as additional context. We use that to remind the
-    running agent that this project has a Hopewell flow network and the
+    running agent that this project has a TaskFlow flow network and the
     convention is to route through `@orchestrator` unless overridden.
 
     The preamble is intentionally short (a handful of lines) — it runs
@@ -447,7 +448,7 @@ def _session_start_preamble(project) -> str:
     stays silent — we MUST NOT block the session.
     """
     lines: List[str] = []
-    lines.append("[hopewell preamble] project has a Hopewell flow network; orchestrator-first routing is the convention.")
+    lines.append("[taskflow preamble] project has a TaskFlow flow network; orchestrator-first routing is the convention.")
     lines.append("  - Default: route every request through @orchestrator (use /o <request> or /orchestrate <request>)")
     lines.append("  - Override: pass --direct to invoke a specific agent, or the agent may proceed for trivial reads")
     lines.append("  - Domain agents invoked directly for substantive work should redirect to @orchestrator")
@@ -515,7 +516,7 @@ def on_session_start() -> int:
     emit the orchestrator-first preamble on stdout (which Claude Code
     injects into the session as additional context).
 
-    Silent no-op if no Hopewell project is present — preamble only
+    Silent no-op if no TaskFlow project is present — preamble only
     applies where the flow network exists.
     """
     payload = _read_hook_input()

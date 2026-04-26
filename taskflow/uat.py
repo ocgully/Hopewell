@@ -1,6 +1,6 @@
 """UAT (user-acceptance testing) tracking.
 
-Hopewell's "done" status means internal tests pass + the node's
+TaskFlow's "done" status means internal tests pass + the node's
 definition_of_done predicates are green. That's insufficient for work
 where a human has to validate against acceptance criteria. The
 `needs-uat` component captures the gap:
@@ -22,7 +22,7 @@ State lives in `component_data.needs-uat`:
 The node's main status (idea/ready/doing/review/done/…) is orthogonal
 and unaffected. A "done" node with UAT status=pending is still considered
 not-shipped to end users; a done+UAT=failed node is a bug to reopen
-(handled explicitly via `hopewell set-status` — `uat fail` doesn't
+(handled explicitly via `taskflow set-status` — `uat fail` doesn't
 auto-reopen to keep the outcome/response split clean).
 """
 from __future__ import annotations

@@ -1,4 +1,4 @@
-# taskflow (formerly hopewell) as a Flotilla plugin.
+# taskflow as a Flotilla plugin.
 #
 # When a project runs `flotilla install taskflow`, the Flotilla CLI:
 #   1. pip-installs taskflow (handled by Flotilla's resolver)
@@ -7,14 +7,14 @@
 #   3. runs the `on_install` steps once to wire git hooks + initialise
 #      the local .taskflow/ store.
 #
-# See https://github.com/ocgully/Hopewell for the underlying tool.
+# See https://github.com/ocgully/taskflow for the underlying tool.
 
 name: taskflow
 aliases:
   - hopewell   # legacy plugin name; resolves to this manifest
 version: 0.17.0
 description: Work ledger — typed nodes, flow network, release scoring
-homepage: https://github.com/ocgully/Hopewell
+homepage: https://github.com/ocgully/taskflow
 license: Apache-2.0
 kind: tool
 

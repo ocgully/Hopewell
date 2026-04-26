@@ -1,6 +1,6 @@
 """Executor + Route — the **flow-network** model (HW-0027).
 
-Distinction from `hopewell.model.Node` (the WorkItem / packet):
+Distinction from `taskflow.model.Node` (the WorkItem / packet):
 
 * A `Node` in v0.1..v0.6 is the *thing that flows* — a ticket / work item /
   packet.
@@ -42,7 +42,7 @@ from typing import Any, Dict, Iterable, List, Optional
 class ExecutorComponent:
     """Contract declared by an executor.
 
-    Mirrors `hopewell.model.Component` but lives in its own registry so
+    Mirrors `taskflow.model.Component` but lives in its own registry so
     project code can reuse names like `agent` / `queue` without colliding
     with WorkItem components.
     """
@@ -212,7 +212,7 @@ class Route:
     required: bool = False
     created: str = field(default_factory=lambda: _now())
     # HW-0050: free-form annotations on the route itself (e.g.
-    # `auto_enforced: true` when a Hopewell git hook covers this edge).
+    # `auto_enforced: true` when a TaskFlow git hook covers this edge).
     # Distinct from `component_data` on executors; routes don't currently
     # carry components, so this is a flat dict.
     data: Dict[str, Any] = field(default_factory=dict)

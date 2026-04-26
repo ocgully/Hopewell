@@ -27,7 +27,7 @@ the `taskflow flow trace` CLI and the `/api/items/{id}/journey`
 endpoint (which already returns a compatible shape — this module
 supersets it).
 
-Reuses `hopewell.events.read_all` for the event source so the projection
+Reuses `taskflow.events.read_all` for the event source so the projection
 stays in lockstep with the event log; no parallel parser to drift.
 """
 from __future__ import annotations

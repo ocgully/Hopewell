@@ -33,7 +33,7 @@ consumer node's references and:
   * If drift AND no open review: create one (Trigger B), then block
     (raise ``ReconciliationRequired`` pointing at the new review).
 
-The bypass env var ``HOPEWELL_SKIP_RECONCILIATION=1`` disables Trigger
+The bypass env var ``TASKFLOW_SKIP_RECONCILIATION=1`` disables Trigger
 B (useful for scripts and CI smoke runs).
 
 Idempotency
@@ -443,7 +443,7 @@ def check_drift_gate(
 
     Fast path: skipped entirely when
 
-      * ``HOPEWELL_SKIP_RECONCILIATION=1`` is set, OR
+      * ``TASKFLOW_SKIP_RECONCILIATION=1`` is set, OR
       * the executor lacks the ``agent`` component, OR
       * the consumer node has no ``spec-input`` references.
 
@@ -451,7 +451,7 @@ def check_drift_gate(
     (no drift) or raises ``ReconciliationRequired`` (drift detected),
     creating an open review node first if Trigger A hasn't already.
     """
-    if os.environ.get("HOPEWELL_SKIP_RECONCILIATION") == "1":
+    if os.environ.get("TASKFLOW_SKIP_RECONCILIATION") == "1":
         return
 
     # Cheap exit: is the executor an `agent`?

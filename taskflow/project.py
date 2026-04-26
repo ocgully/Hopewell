@@ -23,11 +23,11 @@ from taskflow.model import (
 CLAUDEIGNORE_SNIPPET = "/.hopewell/\n"
 
 CLAUDEMD_BLOCK = """\
-## Hopewell — do not read `.hopewell/` directly
+## TaskFlow — do not read `.hopewell/` directly
 
 `.hopewell/` holds the work graph (tickets, edges, events, attestations).
 Agents must NOT read files in that directory during research. Use the
-`taskflow query <...>` CLI (or the `hopewell` Python library) for any
+`taskflow query <...>` CLI (or the `taskflow` Python library) for any
 lookup. Tree-browsing `.hopewell/` defeats the point of the tool (tokens
 + non-determinism). Violations surface in reviews as "you read
 .hopewell/ — please re-do via the CLI."
@@ -35,7 +35,7 @@ lookup. Tree-browsing `.hopewell/` defeats the point of the tool (tokens
 
 
 class Project:
-    """A loaded Hopewell project rooted at a directory containing `.hopewell/`."""
+    """A loaded TaskFlow project rooted at a directory containing `.hopewell/`."""
 
     def __init__(self, root: Path, cfg: ProjectConfig, registry: ComponentRegistry) -> None:
         self.root = root.resolve()
@@ -124,7 +124,7 @@ class Project:
         claudemd = root / "CLAUDE.md"
         if claudemd.is_file():
             md_text = claudemd.read_text(encoding="utf-8")
-            if "## Hopewell — do not read `.hopewell/` directly" not in md_text:
+            if "## TaskFlow — do not read `.hopewell/` directly" not in md_text:
                 suffix = md_text.rstrip() + "\n\n" + CLAUDEMD_BLOCK
                 claudemd.write_text(suffix, encoding="utf-8")
         # If no CLAUDE.md exists, do NOT create one — respect whatever the
@@ -175,7 +175,7 @@ class Project:
     def migrate(cls, start: Optional[Path] = None) -> "Project":
         """Re-apply every idempotent setup step to an existing `.hopewell/`.
 
-        Used when a new Hopewell version adds project-level setup (new
+        Used when a new TaskFlow version adds project-level setup (new
         .gitattributes entries, new config sections, new CLAUDE.md rules).
         Safe to re-run any number of times.
         """
@@ -491,7 +491,7 @@ class Project:
         return []
 
     # ---- flow (HW-0028) ----
-    # Thin wrappers around `hopewell.flow`. The flow module owns the
+    # Thin wrappers around `taskflow.flow`. The flow module owns the
     # actual logic (events + NodeLocation mutation); Project mirrors the
     # v0.4 attestation pattern so every flow op is recorded alongside
     # the event log.
@@ -658,7 +658,7 @@ class CircularDependencyError(ValueError):
             full = " -> ".join(cycle) + f" -> {to_id}"
         super().__init__(
             f"adding `blocks` edge {from_id} -> {to_id} would create a cycle: "
-            f"{full}. Hopewell can't process circular dependencies. Consult "
+            f"{full}. TaskFlow can't process circular dependencies. Consult "
             f"the orchestrator to break this work into smaller chunks before "
             f"linking."
         )
@@ -687,18 +687,18 @@ def _has_project_init_event(events_path: Path) -> bool:
 
 
 _GITATTR_LINES = [
-    ".hopewell/events.jsonl        merge=hopewell-jsonl",
-    ".hopewell/attestations.jsonl  merge=hopewell-jsonl",
-    ".hopewell/edges.jsonl         merge=hopewell-jsonl",
-    ".hopewell/agents.jsonl        merge=hopewell-jsonl",
+    ".hopewell/events.jsonl        merge=taskflow-jsonl",
+    ".hopewell/attestations.jsonl  merge=taskflow-jsonl",
+    ".hopewell/edges.jsonl         merge=taskflow-jsonl",
+    ".hopewell/agents.jsonl        merge=taskflow-jsonl",
 ]
 
-_GITATTR_MARKER = "# --- hopewell jsonl merge driver (managed) ---"
-_GITATTR_END = "# --- /hopewell jsonl merge driver ---"
+_GITATTR_MARKER = "# --- taskflow jsonl merge driver (managed) ---"
+_GITATTR_END = "# --- /taskflow jsonl merge driver ---"
 
 
 def _install_merge_driver(project_root: Path) -> None:
-    """Write .gitattributes block + configure `merge.hopewell-jsonl.driver`.
+    """Write .gitattributes block + configure `merge.taskflow-jsonl.driver`.
 
     Silently no-ops if we're not in a git worktree — the project still works
     without the driver; it just means git-level conflicts on jsonl files
@@ -718,13 +718,13 @@ def _install_merge_driver(project_root: Path) -> None:
     if (project_root / ".git").exists():
         try:
             subprocess.run(
-                ["git", "config", "merge.hopewell-jsonl.driver",
+                ["git", "config", "merge.taskflow-jsonl.driver",
                  "taskflow merge-driver jsonl %O %A %B"],
                 cwd=str(project_root), check=True, capture_output=True, timeout=10,
             )
             subprocess.run(
-                ["git", "config", "merge.hopewell-jsonl.name",
-                 "Hopewell JSONL timestamp-sorted merge"],
+                ["git", "config", "merge.taskflow-jsonl.name",
+                 "TaskFlow JSONL timestamp-sorted merge"],
                 cwd=str(project_root), check=True, capture_output=True, timeout=10,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):

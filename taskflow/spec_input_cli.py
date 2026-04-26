@@ -1,7 +1,7 @@
 """CLI handler functions for `taskflow spec-ref ...` and
 `taskflow query consumers ...` (HW-0031).
 
-Kept in its own module so `hopewell/cli.py` isn't touched in this
+Kept in its own module so `taskflow/cli.py` isn't touched in this
 ticket. Christopher wires the subparser + dispatch after this lands.
 
 Every handler takes an `args` namespace (argparse-style) and returns an

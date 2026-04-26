@@ -1,7 +1,7 @@
 """Git merge driver for `.hopewell/*.jsonl` append-only logs.
 
 Git invokes the driver when it detects a conflict on a file configured with
-`merge=hopewell-jsonl` in `.gitattributes`. Our job: union ancestor + ours +
+`merge=taskflow-jsonl` in `.gitattributes`. Our job: union ancestor + ours +
 theirs, dedupe on canonical JSON, sort by `ts` field, write back to `%A`.
 
 Three files involved (per git docs):
@@ -12,7 +12,7 @@ Three files involved (per git docs):
 Exit 0 = merged cleanly. Exit non-zero = let git surface a conflict.
 
 Installed via `taskflow init` (or `taskflow merge-driver install`) which
-writes .gitattributes + runs `git config merge.hopewell-jsonl.driver ...`.
+writes .gitattributes + runs `git config merge.taskflow-jsonl.driver ...`.
 """
 from __future__ import annotations
 

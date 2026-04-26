@@ -3,7 +3,7 @@
 Two kinds of extension files live under the project's `.hopewell/` tree:
 
 * `.hopewell/processors/*.py` — Python modules that register processors
-  via `@hopewell.orchestrator.processor(...)`. They are imported with
+  via `@taskflow.orchestrator.processor(...)`. They are imported with
   `importlib.util.spec_from_file_location` so they don't need to be on
   `sys.path` and don't require an `__init__.py`.
 
@@ -94,7 +94,7 @@ def load_project_extensions(project: "Project") -> Dict[str, Any]:
 
 def _load_processors(proc_dir: Path) -> "tuple[int, List[str], List[Dict[str, str]]]":
     """Import each `*.py` in proc_dir. Their import-time `@processor(...)`
-    decorators register into hopewell.orchestrator._REGISTRY directly.
+    decorators register into taskflow.orchestrator._REGISTRY directly.
 
     Registry state is captured before/after each import so that ANY of
     the importing module's registrations can be counted — including
@@ -153,7 +153,7 @@ def _module_name_for(path: Path) -> str:
     # path gives us both.
     resolved = str(path.resolve()).replace("\\", "/")
     suffix = f"{_stable_hash(resolved):x}"
-    return f"hopewell_ext_{_sanitize(path.stem)}_{suffix}"
+    return f"taskflow_ext_{_sanitize(path.stem)}_{suffix}"
 
 
 def _import_processor_file(path: Path, mod_name: str) -> None:
@@ -250,7 +250,7 @@ def _load_components(comp_dir: Path, registry) -> "tuple[int, List[str], List[Di
 
 def list_loaded(project: "Project") -> Dict[str, Any]:
     """Summarise what's currently registered — intended for a future
-    `hopewell extensions list` CLI. Does NOT re-scan; reports the state
+    `taskflow extensions list` CLI. Does NOT re-scan; reports the state
     after `Project.load` ran.
     """
     from taskflow import orchestrator
@@ -280,9 +280,9 @@ def list_loaded(project: "Project") -> Dict[str, Any]:
 
 
 def _short_tb() -> str:
-    # Keep tracebacks compact; users can re-run with HOPEWELL_DEBUG for full.
+    # Keep tracebacks compact; users can re-run with TASKFLOW_DEBUG for full.
     import os
-    if os.environ.get("HOPEWELL_DEBUG"):
+    if os.environ.get("TASKFLOW_DEBUG"):
         return traceback.format_exc()
     lines = traceback.format_exc().strip().splitlines()
     return "\n".join(lines[-3:]) if lines else ""

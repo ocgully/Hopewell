@@ -1,6 +1,6 @@
 """CLI handler functions for `taskflow query cycle-time / quality / queue-staleness` (HW-0038).
 
-Kept in its own module so `hopewell/cli.py` isn't touched in this
+Kept in its own module so `taskflow/cli.py` isn't touched in this
 ticket. Christopher wires the subparser / `cmd_query` dispatch after
 this lands.
 

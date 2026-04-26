@@ -33,7 +33,7 @@ class CoordinationConfig:
     mode: str = "auto"
     base_branch: str = "main"
     stale_claim_days: int = 14
-    # v0.5.2: repo-level minimum Hopewell version floor. None = no enforcement.
+    # v0.5.2: repo-level minimum TaskFlow version floor. None = no enforcement.
     # A load below this version refuses with a typed error + upgrade hint.
     minimum_version: Optional[str] = None
 

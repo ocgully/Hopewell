@@ -1,11 +1,11 @@
 """CLI handler for `taskflow backfill`.
 
-CLI wiring (to be added to hopewell/cli.py by a follow-up):
+CLI wiring (to be added to taskflow/cli.py by a follow-up):
 
     # backfill
     sp = sub.add_parser(
         "backfill",
-        help="Populate .hopewell/nodes/ from git history / issues / TODO / specs",
+        help="Populate .taskflow/nodes/ from git history / issues / TODO / specs",
     )
     sp.add_argument(
         "--source", default="git,todo,spec",

@@ -1,4 +1,4 @@
-/* Hopewell web UI — compact, dark-friendly, zero-dep. */
+/* TaskFlow web UI — compact, dark-friendly, zero-dep. */
 
 :root {
   --bg: #14161a;
@@ -294,7 +294,7 @@ footer.bottom {
   stroke-width: 1.8 !important;
   stroke-dasharray: 6 4 !important;
 }
-/* HW-0050: routes fully enforced by a Hopewell git hook — stroke colour
+/* HW-0050: routes fully enforced by a TaskFlow git hook — stroke colour
  * still comes from the source hue (traceability) but we tone it down
  * and overlay dashed styling so humans can tell these apart from
  * orchestrator-driven edges at a glance. */

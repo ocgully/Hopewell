@@ -1,4 +1,4 @@
-"""Shell-script templates for the git hooks Hopewell installs (HW-0050).
+"""Shell-script templates for the git hooks TaskFlow installs (HW-0050).
 
 Kept separate from `hooks.py` (the installer) and `gates.py` (the gate
 logic) so a reviewer can see each hook's shell script standalone.
@@ -7,8 +7,10 @@ Hook structure
 --------------
 
 Every hook starts with a `# hopewell:managed` sentinel comment on the
-line immediately after the shebang. The installer uses that sentinel
-PLUS the classic `--- hopewell hook (managed; do not edit this block) ---`
+line immediately after the shebang (sentinel name kept for backward
+compatibility with already-installed hooks; do not rename). The
+installer uses that sentinel PLUS the classic
+`--- hopewell hook (managed; do not edit this block) ---`
 BEGIN/END block markers so it can do either:
 
   * Surgical inline removal when the hook file contains OTHER user code.
@@ -16,17 +18,20 @@ BEGIN/END block markers so it can do either:
     AND the file is otherwise empty of user content).
 
 The shell scripts are bash-compatible and target Git Bash on Windows,
-macOS, and Linux. They invoke `hopewell gate <name>` (a subcommand the
-CLI wrapper adds) to run the gate and interpret its exit code. If
-`hopewell` isn't on PATH, the hook falls through to `python -m hopewell`
-and, if that also fails, exits 0 (never block on tooling failure).
+macOS, and Linux. They invoke `taskflow gate <name>` (a subcommand the
+CLI wrapper adds) to run the gate and interpret its exit code. The
+hooks first try the new `taskflow` entry point, fall back to the legacy
+`hopewell` alias entry point, and finally fall back to
+`python -m taskflow` (or `python -m hopewell` for legacy installs). If
+all of those fail, the hook exits 0 — we never block on tooling failure.
 
 Bypass
 ------
 
 Every hook short-circuits to `exit 0` immediately if the environment
-variable `HOPEWELL_SKIP_HOOKS=1` is set. This is documented prominently
-in the README and the hook scripts themselves.
+variable `HOPEWELL_SKIP_HOOKS=1` is set (env var name preserved for
+backward compatibility with existing user docs / scripts). This is
+documented prominently in the README and the hook scripts themselves.
 """
 from __future__ import annotations
 
@@ -41,15 +46,18 @@ MARKER_END = "# --- /hopewell hook ---"
 # ---------------------------------------------------------------------------
 
 POST_COMMIT_BODY = r"""
-# Hopewell post-commit: scan last commit for node refs; touch + re-render.
+# TaskFlow post-commit: scan last commit for node refs; touch + re-render.
 # Emits flow events (touch -> implicit enter/leave; fixes/closes -> node.close).
 COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null)
 COMMIT_SHA=$(git rev-parse HEAD 2>/dev/null)
 if [ -n "$COMMIT_MSG" ] && [ -n "$COMMIT_SHA" ]; then
-  if command -v hopewell >/dev/null 2>&1; then
+  if command -v taskflow >/dev/null 2>&1; then
+    taskflow hook-on-commit --message "$COMMIT_MSG" --commit "$COMMIT_SHA" --quiet 2>/dev/null || true
+  elif command -v hopewell >/dev/null 2>&1; then
     hopewell hook-on-commit --message "$COMMIT_MSG" --commit "$COMMIT_SHA" --quiet 2>/dev/null || true
   elif command -v python >/dev/null 2>&1; then
-    python -m hopewell hook-on-commit --message "$COMMIT_MSG" --commit "$COMMIT_SHA" --quiet 2>/dev/null || true
+    python -m taskflow hook-on-commit --message "$COMMIT_MSG" --commit "$COMMIT_SHA" --quiet 2>/dev/null || \
+      python -m hopewell hook-on-commit --message "$COMMIT_MSG" --commit "$COMMIT_SHA" --quiet 2>/dev/null || true
   fi
 fi
 exit 0
@@ -66,23 +74,32 @@ exit 0
 # message file passed as $1 — that's where we check references.
 
 PRE_COMMIT_BODY = r"""
-# Hopewell pre-commit:
+# TaskFlow pre-commit:
 #   reject commits while spec-refs are drifted and uncovered.
-# Bypass: HOPEWELL_SKIP_HOOKS=1 git commit ...
+# Bypass: HOPEWELL_SKIP_HOOKS=1 git commit ...  (env var name preserved
+#         for backward compatibility with existing scripts / CI configs)
 if [ "${HOPEWELL_SKIP_HOOKS:-0}" = "1" ]; then
   exit 0
 fi
 
-HOPEWELL=""
-if command -v hopewell >/dev/null 2>&1; then
-  HOPEWELL="hopewell"
+TASKFLOW=""
+if command -v taskflow >/dev/null 2>&1; then
+  TASKFLOW="taskflow"
+elif command -v hopewell >/dev/null 2>&1; then
+  TASKFLOW="hopewell"
 elif command -v python >/dev/null 2>&1; then
-  HOPEWELL="python -m hopewell"
+  if python -c "import taskflow" >/dev/null 2>&1; then
+    TASKFLOW="python -m taskflow"
+  elif python -c "import hopewell" >/dev/null 2>&1; then
+    TASKFLOW="python -m hopewell"
+  else
+    exit 0
+  fi
 else
   exit 0
 fi
 
-$HOPEWELL gate drift
+$TASKFLOW gate drift
 RC=$?
 if [ $RC -ne 0 ] && [ $RC -ne 100 ]; then
   exit $RC
@@ -97,9 +114,10 @@ exit 0
 # ---------------------------------------------------------------------------
 
 COMMIT_MSG_BODY = r"""
-# Hopewell commit-msg: reject commits missing an HW-NNNN reference.
+# TaskFlow commit-msg: reject commits missing an HW-NNNN reference.
 # $1 is the path to the file containing the pending commit message.
-# Bypass: HOPEWELL_SKIP_HOOKS=1 git commit ...
+# Bypass: HOPEWELL_SKIP_HOOKS=1 git commit ...  (env var name preserved
+#         for backward compatibility with existing scripts / CI configs)
 if [ "${HOPEWELL_SKIP_HOOKS:-0}" = "1" ]; then
   exit 0
 fi
@@ -109,17 +127,25 @@ if [ -z "$COMMIT_MSG_FILE" ] || [ ! -f "$COMMIT_MSG_FILE" ]; then
   exit 0
 fi
 
-HOPEWELL=""
-if command -v hopewell >/dev/null 2>&1; then
-  HOPEWELL="hopewell"
+TASKFLOW=""
+if command -v taskflow >/dev/null 2>&1; then
+  TASKFLOW="taskflow"
+elif command -v hopewell >/dev/null 2>&1; then
+  TASKFLOW="hopewell"
 elif command -v python >/dev/null 2>&1; then
-  HOPEWELL="python -m hopewell"
+  if python -c "import taskflow" >/dev/null 2>&1; then
+    TASKFLOW="python -m taskflow"
+  elif python -c "import hopewell" >/dev/null 2>&1; then
+    TASKFLOW="python -m hopewell"
+  else
+    exit 0
+  fi
 else
   exit 0
 fi
 
 # Feed the message on stdin — avoids shell quoting + multi-line issues.
-cat "$COMMIT_MSG_FILE" | $HOPEWELL gate hw-ref --stdin
+cat "$COMMIT_MSG_FILE" | $TASKFLOW gate hw-ref --stdin
 RC=$?
 if [ $RC -ne 0 ] && [ $RC -ne 100 ]; then
   exit $RC
@@ -133,10 +159,11 @@ exit 0
 # ---------------------------------------------------------------------------
 
 PRE_PUSH_BODY = r"""
-# Hopewell pre-push:
+# TaskFlow pre-push:
 #   on a push to main/master/trunk, block if an in-progress release node
 #   scores below its threshold (taskflow release score <version>).
-# Bypass: HOPEWELL_SKIP_HOOKS=1 git push ...
+# Bypass: HOPEWELL_SKIP_HOOKS=1 git push ...  (env var name preserved
+#         for backward compatibility with existing scripts / CI configs)
 if [ "${HOPEWELL_SKIP_HOOKS:-0}" = "1" ]; then
   exit 0
 fi
@@ -157,16 +184,24 @@ if [ "$TRUNK_TOUCHED" = "0" ]; then
   exit 0
 fi
 
-HOPEWELL=""
-if command -v hopewell >/dev/null 2>&1; then
-  HOPEWELL="hopewell"
+TASKFLOW=""
+if command -v taskflow >/dev/null 2>&1; then
+  TASKFLOW="taskflow"
+elif command -v hopewell >/dev/null 2>&1; then
+  TASKFLOW="hopewell"
 elif command -v python >/dev/null 2>&1; then
-  HOPEWELL="python -m hopewell"
+  if python -c "import taskflow" >/dev/null 2>&1; then
+    TASKFLOW="python -m taskflow"
+  elif python -c "import hopewell" >/dev/null 2>&1; then
+    TASKFLOW="python -m hopewell"
+  else
+    exit 0
+  fi
 else
   exit 0
 fi
 
-$HOPEWELL gate release
+$TASKFLOW gate release
 RC=$?
 if [ $RC -ne 0 ] && [ $RC -ne 100 ]; then
   exit $RC

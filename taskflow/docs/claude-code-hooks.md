@@ -1,10 +1,10 @@
 # Claude Code hooks integration (HW-0040)
 
-Hopewell can hook into the [Claude Code hook system](https://code.claude.com/docs/en/hooks)
+TaskFlow can hook into the [Claude Code hook system](https://code.claude.com/docs/en/hooks)
 so that **flow events fire automatically** whenever a Claude agent
-picks up or finishes work on a Hopewell node. No more manually running
-`hopewell flow push`, `flow.enter`, `flow.leave` — the canvas reflects
-reality because Claude Code tells Hopewell when an agent starts/stops.
+picks up or finishes work on a TaskFlow node. No more manually running
+`taskflow flow push`, `flow.enter`, `flow.leave` — the canvas reflects
+reality because Claude Code tells TaskFlow when an agent starts/stops.
 
 This sits on top of the existing git `post-commit` hook (which
 touches/closes nodes on commits that reference `HW-NNNN`). The two are
@@ -12,12 +12,12 @@ complementary:
 
 | Trigger             | What fires                                          |
 |---------------------|-----------------------------------------------------|
-| Git post-commit     | `hopewell touch` / `close` on referenced nodes      |
+| Git post-commit     | `taskflow touch` / `close` on referenced nodes      |
 | Claude Code hooks   | `flow.enter` / `flow.leave` / (maybe) `flow.push`   |
 
 ## Event mapping
 
-| Claude Code event     | Hopewell action                                                                                               |
+| Claude Code event     | TaskFlow action                                                                                               |
 |-----------------------|---------------------------------------------------------------------------------------------------------------|
 | `SessionStart`        | Write session id to `.hopewell/claude/active.json`. **No flow event.**                                        |
 | `UserPromptSubmit`    | Scan the user prompt for `HW-NNNN` refs and stash them on the active marker's `pending_nodes` queue.          |
@@ -65,7 +65,7 @@ Precedence:
 One-time per machine:
 
 ```bash
-hopewell hooks install --claude-code
+taskflow hooks install --claude-code
 ```
 
 This writes to `~/.claude/settings.json` (user scope) by default. Use
@@ -76,14 +76,14 @@ CI / devcontainers).
 Dry-run to preview:
 
 ```bash
-hopewell hooks install --claude-code --dry-run
+taskflow hooks install --claude-code --dry-run
 ```
 
-Uninstall cleanly (Hopewell-installed entries only — other hooks are
+Uninstall cleanly (TaskFlow-installed entries only — other hooks are
 left untouched):
 
 ```bash
-hopewell hooks uninstall --claude-code
+taskflow hooks uninstall --claude-code
 ```
 
 ### What gets written
@@ -97,7 +97,7 @@ After `hooks install --claude-code`, `settings.json` contains a
     "SessionStart": [
       { "hooks": [
           { "type": "command",
-            "command": "HOPEWELL_EVENT=session-start python -m hopewell.claude_hooks_cli dispatch session-start  # hopewell:managed",
+            "command": "HOPEWELL_EVENT=session-start python -m taskflow.claude_hooks_cli dispatch session-start  # taskflow:managed",
             "timeout": 10 }
       ] }
     ],
@@ -105,7 +105,7 @@ After `hooks install --claude-code`, `settings.json` contains a
       { "matcher": "Task|Agent",
         "hooks": [
           { "type": "command",
-            "command": "HOPEWELL_EVENT=pre-tool-use python -m hopewell.claude_hooks_cli dispatch pre-tool-use  # hopewell:managed",
+            "command": "HOPEWELL_EVENT=pre-tool-use python -m taskflow.claude_hooks_cli dispatch pre-tool-use  # taskflow:managed",
             "timeout": 10 }
       ] }
     ],
@@ -118,9 +118,11 @@ After `hooks install --claude-code`, `settings.json` contains a
 }
 ```
 
-The `# hopewell:managed` marker at the end of every command string is
-how `hopewell hooks uninstall --claude-code` recognizes its own
-entries — third-party hooks in the same file are left intact.
+The `# taskflow:managed` marker at the end of every command string is
+how `taskflow hooks uninstall --claude-code` recognizes its own
+entries — third-party hooks in the same file are left intact. The
+legacy `# hopewell:managed` marker is also recognised on uninstall so
+already-installed pre-rebrand hooks can be cleaned up.
 
 ## Rules of engagement
 
@@ -128,13 +130,13 @@ Hooks MUST be fast and MUST NOT block. Therefore:
 
 - Every handler **swallows every exception** and exits **0**. The worst
   case is a missed flow event; Claude Code never gets a hook error.
-- If `.hopewell/` is not found (cwd not in a Hopewell project), the
+- If `.hopewell/` is not found (cwd not in a TaskFlow project), the
   handler silently no-ops.
 - If the hook input is malformed JSON, the handler silently no-ops.
 - If the resolved executor is unknown to the network, the underlying
   `flow.enter` raises but the caller catches it — still a no-op.
 
-This is by design: Hopewell is additive telemetry over the Claude Code
+This is by design: TaskFlow is additive telemetry over the Claude Code
 agent loop, never a gate on it.
 
 ## Debugging
@@ -143,13 +145,13 @@ Run a handler by hand to see what it would do:
 
 ```bash
 echo '{"hook_event_name":"PreToolUse","tool_name":"Task","tool_input":{"description":"Work on HW-0040","prompt":"Implement HW-0040 as @engineer"}}' \
-  | python -m hopewell.claude_hooks_cli dispatch pre-tool-use
+  | python -m taskflow.claude_hooks_cli dispatch pre-tool-use
 ```
 
 Then check the events log + location:
 
 ```bash
-hopewell flow where HW-0040 --history
+taskflow flow where HW-0040 --history
 tail .hopewell/events.jsonl
 cat .hopewell/claude/active.json
 ```

@@ -1,11 +1,11 @@
 """CLI handlers + settings.json installer for Claude Code hooks (HW-0040).
 
-Kept in its own module so `hopewell/cli.py` isn't touched in this
-ticket. Wiring for `hopewell/cli.py` is documented at the bottom of
+Kept in its own module so `taskflow/cli.py` isn't touched in this
+ticket. Wiring for `taskflow/cli.py` is documented at the bottom of
 this docstring; Christopher (or follow-up work) will drop it into
 `_build_parser`.
 
-This module also provides its own `python -m hopewell.claude_hooks_cli`
+This module also provides its own `python -m taskflow.claude_hooks_cli`
 entry point (see `main()` at the bottom) so the hooks work even before
 `cli.py` is extended.
 
@@ -13,12 +13,12 @@ entry point (see `main()` at the bottom) so the hooks work even before
 Command surface
 --------------------------------------------------------------------
 
-  hopewell claude-hooks <event>
+  taskflow claude-hooks <event>
       Where <event> is one of:
           session-start | session-end | user-prompt-submit |
           pre-tool-use | post-tool-use | stop | subagent-stop
       Reads the hook JSON from stdin, executes the corresponding
-      handler in `hopewell.claude_hooks`, and always exits 0.
+      handler in `taskflow.claude_hooks`, and always exits 0.
 
   taskflow hooks install --claude-code [--dry-run]
                                         [--settings-path PATH]
@@ -31,9 +31,11 @@ Command surface
 
   taskflow hooks uninstall --claude-code [--settings-path PATH]
                                           [--scope user|project]
-      Removes the Hopewell hook registrations (identified by command
-      signature) from Claude Code's settings.json. Leaves unrelated
-      hooks untouched. Writes back the trimmed settings file.
+      Removes the TaskFlow hook registrations (identified by command
+      signature) from Claude Code's settings.json. Both the new
+      `# taskflow:managed` marker and the legacy `# hopewell:managed`
+      marker are recognised on uninstall so old installs can still be
+      cleaned up. Leaves unrelated hooks untouched.
 
 --------------------------------------------------------------------
 Suggested wiring for `cli.py::_build_parser` (drop in verbatim):
@@ -83,9 +85,13 @@ EVENT_CHOICES: Tuple[str, ...] = tuple(ch_mod.DISPATCH.keys())
 
 # Marker placed in every hook command we install — used for
 # round-trip uninstall / re-install without touching other hooks.
-HOOK_MARKER = "# hopewell:managed"
+# NEW installs use the taskflow marker; the legacy hopewell marker is
+# still recognised on uninstall so already-installed hooks (from the
+# pre-rebrand era) can be cleaned up cleanly.
+HOOK_MARKER = "# taskflow:managed"
+LEGACY_HOOK_MARKER = "# hopewell:managed"
 
-# Ordered list of (ClaudeCodeEvent, hopewell-handler-name, matcher).
+# Ordered list of (ClaudeCodeEvent, taskflow-handler-name, matcher).
 # Matcher `None` means "no matcher field" (i.e. match everything that
 # fires this event).
 REGISTRATIONS: List[Tuple[str, str, Optional[str]]] = [
@@ -100,12 +106,12 @@ REGISTRATIONS: List[Tuple[str, str, Optional[str]]] = [
 
 
 # ---------------------------------------------------------------------------
-# dispatch entry (`hopewell claude-hooks <event>`)
+# dispatch entry (`taskflow claude-hooks <event>`)
 # ---------------------------------------------------------------------------
 
 
 def cmd_claude_hooks_dispatch(args) -> int:
-    """Handler for `hopewell claude-hooks <event>` — reads stdin JSON,
+    """Handler for `taskflow claude-hooks <event>` — reads stdin JSON,
     runs the matching hook, always returns 0 (fail-silent)."""
     event = getattr(args, "event", None)
     if event is None:
@@ -133,14 +139,14 @@ def _resolve_settings_path(args) -> Path:
     return _default_settings_path(scope).resolve()
 
 
-def _hopewell_invocation() -> str:
+def _taskflow_invocation() -> str:
     """Return a shell-quoted command that runs our dispatch entry."""
     # Prefer the installed console script if on PATH; otherwise fall
-    # back to `python -m hopewell.claude_hooks_cli` so it works in
+    # back to `python -m taskflow.claude_hooks_cli` so it works in
     # every dev environment.
     return (
-        'hopewell-claude-hook "$HOPEWELL_EVENT" 2>/dev/null '
-        '|| python -m hopewell.claude_hooks_cli dispatch "$HOPEWELL_EVENT" '
+        'taskflow-claude-hook "$HOPEWELL_EVENT" 2>/dev/null '
+        '|| python -m taskflow.claude_hooks_cli dispatch "$HOPEWELL_EVENT" '
         '2>/dev/null || true'
     )
 
@@ -148,38 +154,48 @@ def _hopewell_invocation() -> str:
 def _build_command(event_name: str) -> str:
     """Build the `command` string for a Claude Code hook entry.
 
-    The command sets HOPEWELL_EVENT (our short name) then invokes the
-    dispatcher. We swallow errors so Claude Code never blocks.
+    The command sets HOPEWELL_EVENT (env var name preserved for backward
+    compatibility) then invokes the dispatcher. We swallow errors so
+    Claude Code never blocks.
     """
-    _ = _hopewell_invocation()  # documents the shape; kept for readability
+    _ = _taskflow_invocation()  # documents the shape; kept for readability
     return (
-        f"HOPEWELL_EVENT={event_name} python -m hopewell.claude_hooks_cli "
+        f"HOPEWELL_EVENT={event_name} python -m taskflow.claude_hooks_cli "
         f"dispatch {event_name}  {HOOK_MARKER}"
     )
 
 
-def _is_hopewell_hook_entry(entry: Dict[str, Any]) -> bool:
-    """Identify a hook command we installed (via the marker)."""
+def _is_taskflow_hook_entry(entry: Dict[str, Any]) -> bool:
+    """Identify a hook command we installed (via the marker).
+
+    Recognises BOTH the new `# taskflow:managed` marker and the legacy
+    `# hopewell:managed` marker, so already-installed pre-rebrand hooks
+    are still cleaned up correctly on uninstall / re-install.
+    """
     if not isinstance(entry, dict):
         return False
     if entry.get("type") != "command":
         return False
     cmd = entry.get("command") or ""
-    return HOOK_MARKER in cmd
+    return HOOK_MARKER in cmd or LEGACY_HOOK_MARKER in cmd
+
+
+# Backward-compat alias — older external code may import this name.
+_is_hopewell_hook_entry = _is_taskflow_hook_entry
 
 
 def build_hooks_section(existing: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Build/merge the `hooks` section of Claude Code settings.json.
 
-    Preserves any non-hopewell hook entries. Fully replaces our own
-    entries (identified by `HOOK_MARKER`).
+    Preserves any non-taskflow hook entries. Fully replaces our own
+    entries (identified by `HOOK_MARKER` or `LEGACY_HOOK_MARKER`).
     """
     hooks = dict(existing or {})
     for event_name, short_name, matcher in REGISTRATIONS:
         # Per Claude Code docs each event maps to a LIST of
         # {matcher, hooks: [...]} groups. We:
-        #   1. Drop groups that contain only hopewell entries
-        #   2. Strip hopewell entries from mixed groups
+        #   1. Drop groups that contain only our entries (new or legacy)
+        #   2. Strip our entries from mixed groups
         #   3. Append a fresh group for our registration
         groups: List[Dict[str, Any]] = list(hooks.get(event_name) or [])
         cleaned: List[Dict[str, Any]] = []
@@ -188,12 +204,12 @@ def build_hooks_section(existing: Optional[Dict[str, Any]] = None) -> Dict[str, 
                 cleaned.append(g)
                 continue
             inner = g.get("hooks") or []
-            kept = [h for h in inner if not _is_hopewell_hook_entry(h)]
+            kept = [h for h in inner if not _is_taskflow_hook_entry(h)]
             if kept:
                 new_g = dict(g)
                 new_g["hooks"] = kept
                 cleaned.append(new_g)
-            # else: group was only hopewell's — drop it entirely
+            # else: group was only ours — drop it entirely
 
         entry: Dict[str, Any] = {
             "type": "command",
@@ -213,7 +229,7 @@ def install_claude_code_settings(
     *,
     dry_run: bool = False,
 ) -> Dict[str, Any]:
-    """Install Hopewell hooks into the given settings.json file.
+    """Install TaskFlow hooks into the given settings.json file.
 
     Returns the full settings dict that would be (or was) written.
     Creates parent directories on real writes.
@@ -241,7 +257,10 @@ def install_claude_code_settings(
 
 
 def uninstall_claude_code_settings(settings_path: Path) -> bool:
-    """Strip Hopewell-installed hook entries from settings.json.
+    """Strip TaskFlow-installed hook entries from settings.json.
+
+    Recognises both the new `taskflow:managed` marker and the legacy
+    `hopewell:managed` marker so pre-rebrand installs are also cleaned.
 
     Returns True if any entries were removed.
     """
@@ -269,7 +288,7 @@ def uninstall_claude_code_settings(settings_path: Path) -> bool:
                 new_groups.append(g)
                 continue
             inner = g.get("hooks") or []
-            kept = [h for h in inner if not _is_hopewell_hook_entry(h)]
+            kept = [h for h in inner if not _is_taskflow_hook_entry(h)]
             if len(kept) != len(inner):
                 changed = True
             if kept:
@@ -311,20 +330,20 @@ def cmd_uninstall_claude_code(args) -> int:
     changed = uninstall_claude_code_settings(settings_path)
     if not getattr(args, "quiet", False):
         if changed:
-            sys.stdout.write(f"Removed Hopewell hooks from {settings_path}\n")
+            sys.stdout.write(f"Removed TaskFlow hooks from {settings_path}\n")
         else:
-            sys.stdout.write(f"No Hopewell hooks found in {settings_path}\n")
+            sys.stdout.write(f"No TaskFlow hooks found in {settings_path}\n")
     return 0
 
 
 # ---------------------------------------------------------------------------
-# standalone entry point: `python -m hopewell.claude_hooks_cli ...`
+# standalone entry point: `python -m taskflow.claude_hooks_cli ...`
 # ---------------------------------------------------------------------------
 
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="hopewell.claude_hooks_cli",
+        prog="taskflow.claude_hooks_cli",
         description="Claude Code hook dispatcher + settings.json installer (HW-0040)",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -340,7 +359,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ip.add_argument("--quiet", action="store_true")
     ip.set_defaults(func=cmd_install_claude_code)
 
-    up = sub.add_parser("uninstall", help="Remove Hopewell hooks from settings.json")
+    up = sub.add_parser("uninstall", help="Remove TaskFlow hooks from settings.json")
     up.add_argument("--settings-path", default=None)
     up.add_argument("--scope", choices=["user", "project"], default="user")
     up.add_argument("--quiet", action="store_true")

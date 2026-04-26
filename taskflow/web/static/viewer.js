@@ -1,4 +1,4 @@
-// Hopewell markdown viewer (HW-0032).
+// TaskFlow markdown viewer (HW-0032).
 //
 // Self-contained modal overlay that renders a node .md file plus its
 // referenced spec slices with:
@@ -239,7 +239,7 @@ async function tryLoadPlantuml() {
           const out = await fn(src);
           return typeof out === "string" ? out : (out && out.svg) || "";
         };
-        console.info(`[hopewell] plantuml renderer: ${cand.name}`);
+        console.info(`[taskflow] plantuml renderer: ${cand.name}`);
         return _plantumlRenderer;
       }
     } catch (e) {
@@ -247,7 +247,7 @@ async function tryLoadPlantuml() {
       // keep trying
     }
   }
-  console.warn("[hopewell] no PlantUML WASM package loaded; using fallback",
+  console.warn("[taskflow] no PlantUML WASM package loaded; using fallback",
                _plantumlError && String(_plantumlError));
   return null;
 }

@@ -49,7 +49,7 @@ Queue-staleness:
 
     For every executor with the `queue` component, compute
     max(now - pushed_at) across currently-pending pushes (via
-    `hopewell.flow.inbox`). If >= threshold (default 24h, overridable
+    `taskflow.flow.inbox`). If >= threshold (default 24h, overridable
     per-queue via component_data["queue"]["stale_after"]), flag it.
 
 Stdlib only.

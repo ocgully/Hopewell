@@ -1,6 +1,6 @@
 """Render BACKLOG.md, graph.md, metrics.md — deterministic, no timestamps.
 
-Called by `hopewell render` and after every mutation via the library. All
+Called by `taskflow render` and after every mutation via the library. All
 outputs regenerate from the node files + events; never hand-edited.
 """
 from __future__ import annotations
@@ -88,7 +88,7 @@ def backlog(nodes: List[Node], project: Project) -> str:
     lines = [
         f"# {project.cfg.name} — Backlog",
         "",
-        f"_Project: `{project.cfg.name}`. This view regenerates on every `hopewell render`; edit node files, not this file._",
+        f"_Project: `{project.cfg.name}`. This view regenerates on every `taskflow render`; edit node files, not this file._",
         "",
     ]
 

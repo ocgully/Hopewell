@@ -5,13 +5,13 @@ analysis — see AgentFactory `patterns/drafts/hooks-vs-orchestrator.md`).
 Each gate takes minimal context (commit message, branch name, project
 root) and returns a `GateResult`.
 
-The hook scripts in `hopewell/hook_templates.py` shell out to the
-`hopewell` CLI, which dispatches here. Keeping the logic in-library
+The hook scripts in `taskflow/hook_templates.py` shell out to the
+`taskflow` CLI, which dispatches here. Keeping the logic in-library
 (rather than inline in the shell script) means:
 
   * Python test coverage is possible without invoking git.
   * Hooks remain tiny shell stubs — easier to audit + uninstall.
-  * Any Hopewell release that updates gate logic updates hook behaviour
+  * Any TaskFlow release that updates gate logic updates hook behaviour
     transparently (no need to re-run `taskflow hooks install`).
 
 All gates obey the following contract:
@@ -22,7 +22,7 @@ All gates obey the following contract:
     with a `skipped` reason so hooks never block on tooling errors.
   * The `HOPEWELL_SKIP_HOOKS=1` bypass is checked in the shell script
     before we're even invoked. We don't need to check it here — but we
-    do respect `HOPEWELL_GATE_*` env-var overrides for individual gates
+    do respect `TASKFLOW_GATE_*` env-var overrides for individual gates
     so testing is surgical.
 
 Gate catalogue:
@@ -35,7 +35,7 @@ Gate catalogue:
     trunk branch, deny if an in-progress release node scores below its
     threshold (pre-push).
 
-This module is stdlib-only. It imports other hopewell modules lazily so
+This module is stdlib-only. It imports other taskflow modules lazily so
 it works even if a stale hook script survives a partial uninstall.
 """
 from __future__ import annotations
@@ -171,7 +171,7 @@ def check_drift(project_root: Path) -> GateResult:
             for nid in review.get("nodes", []) or []:
                 covered_nodes.add(nid)
     except AttributeError:
-        # `list_active_reviews` may not exist in every Hopewell version; be forgiving.
+        # `list_active_reviews` may not exist in every TaskFlow version; be forgiving.
         pass
     except Exception:  # noqa: BLE001
         pass

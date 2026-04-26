@@ -76,14 +76,14 @@ def ensure_network_dir(project_root: Path) -> Path:
 
 
 _GITATTR_LINES = [
-    ".hopewell/network/routes.jsonl  merge=hopewell-jsonl",
+    ".hopewell/network/routes.jsonl  merge=taskflow-jsonl",
 ]
-_GITATTR_MARKER = "# --- hopewell network jsonl merge driver (managed) ---"
-_GITATTR_END = "# --- /hopewell network jsonl merge driver ---"
+_GITATTR_MARKER = "# --- taskflow network jsonl merge driver (managed) ---"
+_GITATTR_END = "# --- /taskflow network jsonl merge driver ---"
 
 
 def install_gitattributes(project_root: Path) -> bool:
-    """Ensure `routes.jsonl` gets the hopewell-jsonl merge driver.
+    """Ensure `routes.jsonl` gets the taskflow-jsonl merge driver.
 
     Idempotent. Writes its own managed block, distinct from the v0.5
     block in `project.py`, so nothing else in the project is touched.
@@ -109,7 +109,7 @@ def install_gitattributes(project_root: Path) -> bool:
     if (project_root / ".git").exists():
         try:
             subprocess.run(
-                ["git", "config", "merge.hopewell-jsonl.driver",
+                ["git", "config", "merge.taskflow-jsonl.driver",
                  "taskflow merge-driver jsonl %O %A %B"],
                 cwd=str(project_root), check=True, capture_output=True, timeout=10,
             )
@@ -297,7 +297,7 @@ def _safe_filename(eid: str) -> str:
 
 
 def routes_covered_by_hooks(net: Network) -> List[Route]:
-    """Return routes whose semantics are fully enforced by a Hopewell
+    """Return routes whose semantics are fully enforced by a TaskFlow
     git hook (HW-0050 gates A + B).
 
     Coverage mapping from hook -> route pattern:

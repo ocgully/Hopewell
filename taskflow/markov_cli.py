@@ -1,6 +1,6 @@
 """CLI handler for `taskflow query markov` (HW-0036).
 
-Kept separate so `hopewell/cli.py` isn't touched in this ticket —
+Kept separate so `taskflow/cli.py` isn't touched in this ticket —
 matches the pattern established by `cycle_time_cli.py` for HW-0038.
 Christopher wires the subparser / `cmd_query` dispatch after this
 lands.
@@ -36,8 +36,8 @@ The handler returns an int exit code like the rest of `cli.py`:
 
 Standalone invocation (smoke-testing before cli.py wiring):
 
-    python -m hopewell.markov_cli --window all
-    python -m hopewell.markov_cli --window 30d --format json --top 5
+    python -m taskflow.markov_cli --window all
+    python -m taskflow.markov_cli --window 30d --format json --top 5
 """
 from __future__ import annotations
 
@@ -168,13 +168,13 @@ def _print_markov_text(data: Dict[str, Any], *, top_n: int, by: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# standalone entry (`python -m hopewell.markov_cli`)
+# standalone entry (`python -m taskflow.markov_cli`)
 # ---------------------------------------------------------------------------
 
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="hopewell.markov_cli",
+        prog="taskflow.markov_cli",
         description="Markov / rework analytics (HW-0036). "
                     "Mirrors `taskflow query markov` (pending cli.py wiring).",
     )

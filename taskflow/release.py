@@ -1,7 +1,7 @@
 """Release tooling (HW-0043).
 
 A `release` node is a composition-based record pinning a version,
-scope, confidence score, report location, and final outcome. Hopewell
+scope, confidence score, report location, and final outcome. TaskFlow
 owns the lifecycle; the @release-engineer core agent is the primary
 consumer.
 
@@ -118,7 +118,7 @@ def load_config(project) -> Dict[str, Any]:
     """Load `.hopewell/release-config.yaml` with fallbacks to defaults.
 
     Stdlib-only: accepts a stripped-down YAML-ish format identical to
-    what `hopewell.storage` emits (simple maps + scalars + lists). If
+    what `taskflow.storage` emits (simple maps + scalars + lists). If
     PyYAML is present we use it; otherwise we fall back to a thin
     scanner good enough for the config's fixed shape.
     """
@@ -863,7 +863,7 @@ def _find_kickbacks(project, version: str) -> List[str]:
 DEFAULT_CONFIG_TEMPLATE = """\
 # .hopewell/release-config.yaml  (HW-0043)
 # Tuning knobs for the release-engineer agent + taskflow release CLI.
-# All fields are optional; Hopewell fills any missing key with a default.
+# All fields are optional; TaskFlow fills any missing key with a default.
 
 threshold:
   release: 80       # >= release threshold ships via `finalize --gh-release`

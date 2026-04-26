@@ -1,6 +1,6 @@
 """CLI handler for `taskflow flow trace <node_id>` (HW-0035).
 
-Kept out of `hopewell/cli.py` so the core parser file stays slim. The
+Kept out of `taskflow/cli.py` so the core parser file stays slim. The
 wiring snippet below is what `cli.py` grows inside its `flow` subparser
 block:
 

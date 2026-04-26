@@ -269,7 +269,7 @@ def cycle_time(project: Project, node_id: Optional[str] = None, *,
 def quality(project: Project, executor_id: Optional[str] = None, *,
             since: Optional[str] = None,
             all_executors: bool = False) -> Dict[str, Any]:
-    """Per-executor rework ratio (active clock). See `hopewell.cycle_time.quality`."""
+    """Per-executor rework ratio (active clock). See `taskflow.cycle_time.quality`."""
     from taskflow import cycle_time as _ct
     return _ct.quality(project, executor_id, since=since,
                        all_executors=all_executors)
@@ -277,7 +277,7 @@ def quality(project: Project, executor_id: Optional[str] = None, *,
 
 def queue_staleness(project: Project, *,
                     threshold: Optional[str] = None) -> Dict[str, Any]:
-    """Queue-health signal. See `hopewell.cycle_time.queue_staleness`."""
+    """Queue-health signal. See `taskflow.cycle_time.queue_staleness`."""
     from taskflow import cycle_time as _ct
     return _ct.queue_staleness(project, threshold=threshold)
 
@@ -291,7 +291,7 @@ def markov(project: Project, *, window: str = "30d",
            include_singletons: bool = True) -> Dict[str, Any]:
     """Per-edge transition probabilities across all work items.
 
-    See `hopewell.markov.compute` for the full semantics (window
+    See `taskflow.markov.compute` for the full semantics (window
     resolution, forward-vs-back classification, time-weighted overlay).
     """
     from taskflow import markov as _markov

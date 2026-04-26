@@ -1,9 +1,9 @@
-# Hopewell — Flotilla plugin contributions
+# TaskFlow — Flotilla plugin contributions
 
-This directory turns Hopewell into a Flotilla plugin. When a downstream
-project runs `flotilla install hopewell`, the Flotilla CLI:
+This directory turns TaskFlow into a Flotilla plugin. When a downstream
+project runs `flotilla install taskflow`, the Flotilla CLI:
 
-1. `pip install hopewell`
+1. `pip install taskflow`
 2. Locates the manifest at `<repo>/flotilla.yaml`
 3. Copies/symlinks `plugin/agents/*.md` -> `.claude/agents/`
 4. Copies/symlinks `plugin/commands/*.md` -> `.claude/commands/`
@@ -16,6 +16,6 @@ the CLI itself.
 
 ## What ships
 
-- `agents/hopewell-scribe.md` — the agent that queries the work ledger
+- `agents/taskflow-scribe.md` — the agent that queries the work ledger
 - `commands/hw.md` — `/hw` Claude Code command for ready-queue context
 - `hooks.yaml` — `SessionStart` hook to surface active claims

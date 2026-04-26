@@ -48,9 +48,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ocgully/Hopewell"
-Repository = "https://github.com/ocgully/Hopewell"
-Issues = "https://github.com/ocgully/Hopewell/issues"
+Homepage = "https://github.com/ocgully/taskflow"
+Repository = "https://github.com/ocgully/taskflow"
+Issues = "https://github.com/ocgully/taskflow/issues"
 
 [project.scripts]
 # New primary entry point.

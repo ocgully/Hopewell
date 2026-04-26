@@ -1,6 +1,6 @@
 """CLI handler functions for `taskflow flow ...` (HW-0028).
 
-Kept in its own module so `hopewell/cli.py` isn't touched in this
+Kept in its own module so `taskflow/cli.py` isn't touched in this
 ticket. Christopher wires the subparser + dispatch after this lands.
 
 Every handler takes an `args` namespace (argparse-style) and returns an
@@ -130,7 +130,7 @@ def cmd_flow_enter(args) -> int:
                 file=sys.stderr,
             )
             print(
-                f"  bypass (scripts only):  HOPEWELL_SKIP_RECONCILIATION=1 "
+                f"  bypass (scripts only):  TASKFLOW_SKIP_RECONCILIATION=1 "
                 f"taskflow flow enter {args.node_id} --executor {args.executor}",
                 file=sys.stderr,
             )

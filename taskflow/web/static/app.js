@@ -1,4 +1,4 @@
-// Hopewell web UI — Preact + D3, zero build.
+// TaskFlow web UI — Preact + D3, zero build.
 //
 // Pulls state from /api/state once + subscribes to /api/events (SSE)
 // for incremental refreshes. Four views share one state atom; the
@@ -155,8 +155,8 @@ function App() {
     if (el) el.textContent = state.project.name ? ` — ${state.project.name}` : "";
     const m = document.getElementById("metric-total");
     if (m) m.textContent = `${state.nodes.length} node${state.nodes.length === 1 ? "" : "s"}`;
-    const v = document.getElementById("hopewell-version");
-    if (v) v.textContent = state.hopewell_version ? `v${state.hopewell_version}` : "";
+    const v = document.getElementById("taskflow-version");
+    if (v) v.textContent = state.taskflow_version ? `v${state.taskflow_version}` : "";
     const d = document.getElementById("status-dot");
     if (d) {
       d.classList.toggle("connected", sseOk);
@@ -321,7 +321,7 @@ function BacklogView({ state, onSelect }) {
   };
 
   if (state.nodes.length === 0) {
-    return h("div", { class: "empty" }, "No nodes. Create some with `hopewell new`.");
+    return h("div", { class: "empty" }, "No nodes. Create some with `taskflow new`.");
   }
   if (waves.length === 0 && excluded.length === 0) {
     return h("div", { class: "empty" },
@@ -460,7 +460,7 @@ function UatView({ state, onSelect, reload }) {
   };
 
   if (!state.uat || state.uat.length === 0) {
-    return h("div", { class: "empty" }, "No UAT-tracked nodes. Flag some with `hopewell uat flag`.");
+    return h("div", { class: "empty" }, "No UAT-tracked nodes. Flag some with `taskflow uat flag`.");
   }
 
   return h("div", { class: "uat" },
@@ -610,7 +610,7 @@ function HistoryView({ onSelect }) {
   if (err) return h("div", { class: "empty", style: "color: var(--err)" }, err);
   if (!data) return h("div", { class: "muted" }, "Loading history…");
   if (!data.items || data.items.length === 0) {
-    return h("div", { class: "empty" }, "No closed nodes yet. Close one with `hopewell close`.");
+    return h("div", { class: "empty" }, "No closed nodes yet. Close one with `taskflow close`.");
   }
 
   // Recursive tree renderer. `uid` is the unique path id for a row so that

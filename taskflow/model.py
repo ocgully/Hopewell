@@ -128,7 +128,7 @@ class ComponentRegistry:
         return errors
 
 
-# Built-in component definitions shipped with Hopewell v1.
+# Built-in component definitions shipped with TaskFlow v1.
 BUILTIN_COMPONENTS: List[Component] = [
     Component(
         name="work-item",
@@ -228,7 +228,7 @@ BUILTIN_COMPONENTS: List[Component] = [
             "Iterative subgraph driver (v0.6). The orchestrator walks the "
             "nodes listed in `over` up to `max_iterations` times or until "
             "the `until` predicate is satisfied. Each pass is recorded in "
-            "`iterations`. Created via `hopewell.evolve.add_loop`."
+            "`iterations`. Created via `taskflow.evolve.add_loop`."
         ),
         schema={
             "over": "array of node ids (the subgraph to iterate)",
@@ -257,7 +257,7 @@ BUILTIN_COMPONENTS: List[Component] = [
             "Quote-by-reference to specific passages of spec files. Each "
             "recorded slice carries a content hash for drift detection and "
             "a `why` to remind the consumer what they're relying on. See "
-            "`hopewell.spec_input` + `taskflow spec-ref ...` CLI."
+            "`taskflow.spec_input` + `taskflow spec-ref ...` CLI."
         ),
         schema={
             "specs": (
@@ -275,7 +275,7 @@ BUILTIN_COMPONENTS: List[Component] = [
             "(recorded vs current sha + unified diff). Holds a `blocks` "
             "edge over the consumer until resolved with one of four "
             "outcomes (no-impact, update-in-scope, update-out-of-scope, "
-            "spec-revert). See `hopewell.reconciliation` + the "
+            "spec-revert). See `taskflow.reconciliation` + the "
             "`taskflow reconcile ...` CLI."
         ),
         schema={
@@ -306,7 +306,7 @@ BUILTIN_COMPONENTS: List[Component] = [
             "of a versioned bundle of work. Owns scope (the set of "
             "work-item nodes included), a confidence score, a "
             "standardized report, and the final-gate outcome (draft, "
-            "held, released, kicked-back). See `hopewell.release` + "
+            "held, released, kicked-back). See `taskflow.release` + "
             "the `taskflow release ...` CLI, and the @release-engineer "
             "core agent doc for workflow context."
         ),
@@ -459,7 +459,7 @@ class Node:
     body: str = ""                                     # free-form markdown body (not notes)
     notes: List[str] = field(default_factory=list)     # append-only
     # v0.5.2: preserve unknown front-matter fields across round-trips so that
-    # an older Hopewell editing a newer-format node doesn't silently drop
+    # an older TaskFlow editing a newer-format node doesn't silently drop
     # fields it doesn't understand.
     extras: Dict[str, Any] = field(default_factory=dict)
 
@@ -484,7 +484,7 @@ class Node:
 
     # ---- serialisation ----
     # Fields we know how to round-trip. Anything ELSE in the front-matter is
-    # preserved as-is via `extras` so older Hopewells don't destroy newer data.
+    # preserved as-is via `extras` so older TaskFlows don't destroy newer data.
     KNOWN_FIELDS = {
         "id", "status", "priority", "created", "updated",
         "owner", "project", "parent", "components",
@@ -536,7 +536,7 @@ class Node:
             d["component_data"] = self.component_data
         if self.locations:
             d["locations"] = [loc.to_dict() for loc in self.locations]
-        # Preserve any fields a newer Hopewell wrote that we don't recognise.
+        # Preserve any fields a newer TaskFlow wrote that we don't recognise.
         for k, v in self.extras.items():
             if k not in d:
                 d[k] = v

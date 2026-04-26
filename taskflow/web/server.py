@@ -1,11 +1,11 @@
-"""FastAPI server + SSE bridge for the Hopewell local web UI.
+"""FastAPI server + SSE bridge for the TaskFlow local web UI.
 
 Design notes:
 
 * Optional extra. All web-only imports (fastapi, uvicorn, watchdog) live
-  behind a lazy guard so that someone who installed plain `hopewell`
+  behind a lazy guard so that someone who installed plain `taskflow`
   without `[web]` gets a clear, single-line error — not a traceback.
-* Read-mostly. All mutations still go through `hopewell.project.Project`
+* Read-mostly. All mutations still go through `taskflow.project.Project`
   (i.e. the same code path the CLI uses); the server never touches
   `.hopewell/` files directly, it just reflects them back over HTTP.
 * Realtime via watchdog. A FileSystemEventHandler watches
@@ -15,8 +15,8 @@ Design notes:
   as ES modules from esm.sh. The server only serves the three static
   files and the JSON API.
 
-CLI entry: `hopewell.web.server.run(project_root, port, open_browser)`.
-cli.py wires `hopewell web` to this; we don't touch cli.py from here.
+CLI entry: `taskflow.web.server.run(project_root, port, open_browser)`.
+cli.py wires `taskflow web` to this; we don't touch cli.py from here.
 
 NOTE: we deliberately do NOT use `from __future__ import annotations`
 here. FastAPI uses `typing.get_type_hints()` to resolve parameter types
@@ -41,9 +41,9 @@ from typing import Any, Dict, List, Optional, Tuple
 # ---------------------------------------------------------------------------
 
 _MISSING_EXTRAS_HINT = (
-    "Hopewell's web UI requires the `[web]` extra.\n"
+    "TaskFlow's web UI requires the `[web]` extra.\n"
     "Install it with:\n"
-    "    pip install 'hopewell[web]'\n"
+    "    pip install 'taskflow[web]'\n"
     "(brings in fastapi, uvicorn, watchdog)."
 )
 
@@ -57,7 +57,7 @@ def _require_web_extras() -> None:
             missing.append(mod)
     if missing:
         sys.stderr.write(
-            f"hopewell web: missing extras ({', '.join(missing)}).\n"
+            f"taskflow web: missing extras ({', '.join(missing)}).\n"
             f"{_MISSING_EXTRAS_HINT}\n"
         )
         raise SystemExit(2)
@@ -183,7 +183,7 @@ def _slice_key(path: Optional[str], anchor: Optional[str],
 
 
 def _load_project(project_root: Path):
-    """Load a Hopewell project, surface a readable error if `.hopewell/` is absent."""
+    """Load a TaskFlow project, surface a readable error if `.hopewell/` is absent."""
     from taskflow.project import Project
     try:
         return Project.load(project_root)
@@ -191,7 +191,7 @@ def _load_project(project_root: Path):
         raise
     except Exception as e:
         raise SystemExit(
-            f"hopewell web: could not load project at {project_root}: {e}\n"
+            f"taskflow web: could not load project at {project_root}: {e}\n"
             f"Run `taskflow init` in a project directory first."
         )
 
@@ -231,7 +231,7 @@ def _state_snapshot(project) -> Dict[str, Any]:
             "root": str(project.root),
             "id_prefix": project.cfg.id_prefix,
         },
-        "hopewell_version": hw_version,
+        "taskflow_version": hw_version,
         "systems": roots,
         "nodes": graph["nodes"],
         "edges": graph["edges"],
@@ -251,7 +251,7 @@ def create_app(project_root: Path):
     project_root = project_root.resolve()
     project = _load_project(project_root)
 
-    app = FastAPI(title="Hopewell Web UI", version="0.6.0-dev")
+    app = FastAPI(title="TaskFlow Web UI", version="0.6.0-dev")
     bus = EventBus()
     loop_ref: Dict[str, Any] = {"loop": None}   # set at startup
 
@@ -581,7 +581,7 @@ def create_app(project_root: Path):
         if anchor.get("explicit_anchor"):
             kwargs["explicit_anchor"] = anchor.get("explicit_anchor")
 
-        actor = body.get("actor") or request.headers.get("x-hopewell-actor")
+        actor = body.get("actor") or request.headers.get("x-taskflow-actor")
         p = _load_project(project_root)
         try:
             thread = comment_mod.post(p, target, text, actor=actor, **kwargs)
@@ -625,7 +625,7 @@ def create_app(project_root: Path):
             raise HTTPException(status_code=400, detail="invalid JSON body")
         if not isinstance(body, dict) or not body.get("body"):
             raise HTTPException(status_code=400, detail="`body` required")
-        actor = body.get("actor") or request.headers.get("x-hopewell-actor")
+        actor = body.get("actor") or request.headers.get("x-taskflow-actor")
         p = _load_project(project_root)
         try:
             thread = comment_mod.edit(p, comment_id, body["body"], actor=actor)
@@ -645,7 +645,7 @@ def create_app(project_root: Path):
                 actor = body.get("actor")
         except Exception:
             pass
-        actor = actor or request.headers.get("x-hopewell-actor")
+        actor = actor or request.headers.get("x-taskflow-actor")
         p = _load_project(project_root)
         try:
             thread = comment_mod.resolve(p, comment_id, reason=reason, actor=actor)
@@ -663,7 +663,7 @@ def create_app(project_root: Path):
                 actor = body.get("actor")
         except Exception:
             pass
-        actor = actor or request.headers.get("x-hopewell-actor")
+        actor = actor or request.headers.get("x-taskflow-actor")
         p = _load_project(project_root)
         try:
             thread = comment_mod.reopen(p, comment_id, actor=actor)
@@ -684,7 +684,7 @@ def create_app(project_root: Path):
         if not title:
             raise HTTPException(status_code=400, detail="`title` required")
         body_prefix = body.get("body_prefix") or ""
-        actor = body.get("actor") or request.headers.get("x-hopewell-actor")
+        actor = body.get("actor") or request.headers.get("x-taskflow-actor")
         p = _load_project(project_root)
         try:
             result = comment_mod.promote(p, comment_id, title,
@@ -697,7 +697,7 @@ def create_app(project_root: Path):
 
     # ---- Reconciliation endpoints (HW-0034) ----------------------------
     #
-    # Downstream-review nodes for spec drift. See `hopewell.reconciliation`
+    # Downstream-review nodes for spec drift. See `taskflow.reconciliation`
     # for the data model + idempotency rules.
     #
     #   POST /api/reconcile/queue           — Trigger A: create reviews
@@ -739,7 +739,7 @@ def create_app(project_root: Path):
         if heading and lines:
             raise HTTPException(status_code=400,
                                 detail="provide `heading` OR `lines`, not both")
-        actor = body.get("actor") or request.headers.get("x-hopewell-actor")
+        actor = body.get("actor") or request.headers.get("x-taskflow-actor")
         p = _load_project(project_root)
         try:
             results = recon_mod.queue_reviews(
@@ -807,7 +807,7 @@ def create_app(project_root: Path):
         outcome = body.get("outcome")
         if not outcome:
             raise HTTPException(status_code=400, detail="`outcome` required")
-        actor = body.get("actor") or request.headers.get("x-hopewell-actor")
+        actor = body.get("actor") or request.headers.get("x-taskflow-actor")
         p = _load_project(project_root)
         try:
             result = recon_mod.resolve_review(
@@ -1251,7 +1251,7 @@ def create_app(project_root: Path):
             include_singletons — count single-traversal items in the
                                  base-rate total (default True).
 
-        Payload shape (abbreviated — see `hopewell.markov.compute`):
+        Payload shape (abbreviated — see `taskflow.markov.compute`):
             {
               "window": "30d",
               "total_items": 42, "total_transitions": 157,
@@ -1278,7 +1278,7 @@ def create_app(project_root: Path):
         async def gen():
             q = await bus.subscribe()
             # initial hello so clients know the stream is alive
-            yield b": hopewell-sse hello\n\n"
+            yield b": taskflow-sse hello\n\n"
             try:
                 while True:
                     if await request.is_disconnected():
@@ -1396,7 +1396,7 @@ def run(project_root: str = ".", port: int = 7420, open_browser: bool = False,
                 pass
         threading.Thread(target=_open, daemon=True).start()
 
-    sys.stdout.write(f"hopewell web -> http://{host}:{port}/  (project: {root})\n")
+    sys.stdout.write(f"taskflow web -> http://{host}:{port}/  (project: {root})\n")
     sys.stdout.flush()
     uvicorn.run(app, host=host, port=port, log_level="info")
 

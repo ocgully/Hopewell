@@ -1,4 +1,4 @@
-"""Allow `python -m hopewell`."""
+"""Allow `python -m taskflow`."""
 import sys
 from taskflow.cli import main
 

@@ -34,7 +34,7 @@ enough for agents to reason about a slice at a time):
     maybe_auto_done(project, node_id, ...)
 
 All mutating functions are idempotent where stated; all emit events via
-`hopewell.events.append`.
+`taskflow.events.append`.
 
 Stdlib only.
 """
@@ -159,7 +159,7 @@ def _require_executor(project, executor_id: str) -> None:
     if executor_id not in known:
         raise ValueError(
             f"unknown executor: {executor_id!r} "
-            f"(known: {sorted(known) if known else '<none — run `hopewell network init`>'})"
+            f"(known: {sorted(known) if known else '<none — run `taskflow network init`>'})"
         )
 
 
@@ -180,7 +180,7 @@ def enter(project, node_id: str, executor_id: str, *,
     drifted and there is no resolved `downstream-review` covering it,
     the gate auto-creates a review node and raises
     `ReconciliationRequired` — propagated to the caller. Set
-    `HOPEWELL_SKIP_RECONCILIATION=1` to disable.
+    `TASKFLOW_SKIP_RECONCILIATION=1` to disable.
 
     Returns True on first-time enter, False on no-op.
     """

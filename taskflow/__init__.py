@@ -1,6 +1,5 @@
 """taskflow — flow-framework tool for AI-agent-driven work.
 
-Previously shipped as `hopewell`. Renamed to `taskflow` in April 2026.
 The legacy `hopewell` CLI entry point remains as a deprecation shim
 that prints a stderr warning and forwards to `taskflow`.
 

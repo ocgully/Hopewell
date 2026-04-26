@@ -703,7 +703,7 @@ function InnerCanvas({ onSelect, journeyId, journeyBus,
       const key = `${route.from}|${route.to}`;
       const hl = journeyEdges.has(key);
       const isBack = backEdges.has(key);
-      // HW-0050: routes fully enforced by a Hopewell git hook are
+      // HW-0050: routes fully enforced by a TaskFlow git hook are
       // rendered with a distinct style so humans can see which routes
       // are hook-driven vs orchestrator-driven. The source-hue is
       // preserved (subway-style traceability) but desaturated + dashed.
@@ -835,7 +835,7 @@ function InnerCanvas({ onSelect, journeyId, journeyBus,
   if (!network) return h("div", { class: "muted" }, "Loading flow network…");
   if (!network.executors || network.executors.length === 0) {
     return h("div", { class: "empty" },
-      "No flow network yet. Run `hopewell network init && hopewell network defaults bootstrap`.");
+      "No flow network yet. Run `taskflow network init && taskflow network defaults bootstrap`.");
   }
   if (!layout) return h("div", { class: "muted" }, "Computing layout…");
   if (showOnlyVisited && !collapsedLayout) {

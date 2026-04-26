@@ -1,6 +1,6 @@
 """CLI handlers for `taskflow release ...` (HW-0043).
 
-Kept in its own module so `hopewell/cli.py` isn't touched in this
+Kept in its own module so `taskflow/cli.py` isn't touched in this
 ticket. Christopher wires the subparser + dispatch after this lands.
 
 Every handler takes an `args` namespace (argparse-style) and returns
@@ -100,7 +100,7 @@ Suggested subparser wiring (drop into `_build_parser` in `cli.py`):
 
 The module is also runnable directly — smoke tests can call::
 
-    python -m hopewell.release_cli start v0.1.0 --scope SM-0001,SM-0002
+    python -m taskflow.release_cli start v0.1.0 --scope SM-0001,SM-0002
 
 until cli.py wires this in.
 """
@@ -384,7 +384,7 @@ def cmd_release_list(args) -> int:
 
 
 def _build_standalone_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="hopewell.release_cli",
+    p = argparse.ArgumentParser(prog="taskflow.release_cli",
                                 description="Release tooling (HW-0043)")
     p.add_argument("--project-root", default=None)
     sub = p.add_subparsers(dest="cmd", required=True)

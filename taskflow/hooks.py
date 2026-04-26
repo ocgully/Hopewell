@@ -1,6 +1,6 @@
 """Git-hook installer (HW-0050).
 
-Installs the layered Hopewell git hooks into `.git/hooks/`:
+Installs the layered TaskFlow git hooks into `.git/hooks/`:
 
 * **post-commit** (always) — category A: mechanical bookkeeping. Scans
   the commit message for work-item references + `closes/fixes HW-NNNN`
@@ -16,18 +16,18 @@ Installs the layered Hopewell git hooks into `.git/hooks/`:
 
 Category C (context injection — Pedia, universal context) is
 **deliberately NOT in this file**. Git hooks can't do it because they
-don't know about the AI session. See `hopewell/claude_hooks.py`
+don't know about the AI session. See `taskflow/claude_hooks.py`
 (HW-0040) for the Claude Code hook entry points that handle C.
 
 Uninstall semantics
 -------------------
 
 Each installed hook script starts with a `# hopewell:managed` sentinel
-(see `hopewell.hook_templates.SENTINEL`). Uninstall:
+(see `taskflow.hook_templates.SENTINEL`). Uninstall:
 
-  * If the file is PURE Hopewell (sentinel line present, nothing else
+  * If the file is PURE TaskFlow (sentinel line present, nothing else
     of substance), `uninstall` deletes it.
-  * If the file has non-Hopewell content mixed in (rare — user wrote
+  * If the file has non-TaskFlow content mixed in (rare — user wrote
     their own hook, then ran `hooks install`), we strip just the
     managed block between `MARKER_BEGIN` / `MARKER_END`.
 
@@ -105,7 +105,7 @@ def _make_executable(path: Path) -> None:
         pass
 
 
-def _is_pure_hopewell_hook(text: str) -> bool:
+def _is_pure_taskflow_hook(text: str) -> bool:
     """True iff the file is just our shebang + sentinel + managed block —
     no other user code interleaved."""
     stripped = text.strip()
@@ -141,7 +141,7 @@ def _is_pure_hopewell_hook(text: str) -> bool:
 
 
 def install(project_root: Path, *, full: bool = False) -> Dict[str, Path]:
-    """Install Hopewell hooks into the project's `.git/hooks/`.
+    """Install TaskFlow hooks into the project's `.git/hooks/`.
 
     Returns a dict mapping hook name -> installed script path. Use
     `full=True` for the pre-commit + pre-push gates in addition to the
@@ -188,8 +188,8 @@ def _install_one(project_root: Path, hook_name: str) -> Path:
             hp.write_text(merged, encoding="utf-8")
             _make_executable(hp)
             return hp
-        # Existing non-hopewell hook. Back up and overwrite.
-        backup = hp.with_suffix(hp.suffix + ".bak.hopewell") if hp.suffix else hp.parent / f"{hp.name}.bak.hopewell"
+        # Existing non-taskflow hook. Back up and overwrite.
+        backup = hp.with_suffix(hp.suffix + ".bak.taskflow") if hp.suffix else hp.parent / f"{hp.name}.bak.taskflow"
         try:
             backup.write_bytes(hp.read_bytes())
         except OSError:
@@ -201,7 +201,7 @@ def _install_one(project_root: Path, hook_name: str) -> Path:
 
 
 def uninstall(project_root: Path) -> Dict[str, bool]:
-    """Remove Hopewell's managed blocks from all hooks in this project.
+    """Remove TaskFlow's managed blocks from all hooks in this project.
 
     Returns a dict mapping hook name -> True if we removed something, False
     if there was nothing to remove. Files that are purely ours get deleted;
@@ -225,7 +225,7 @@ def _uninstall_one(project_root: Path, hook_name: str) -> bool:
     if SENTINEL not in text and MARKER_BEGIN not in text:
         return False
 
-    if _is_pure_hopewell_hook(text):
+    if _is_pure_taskflow_hook(text):
         hp.unlink()
         return True
 
@@ -251,7 +251,7 @@ def _uninstall_one(project_root: Path, hook_name: str) -> bool:
 
 
 def status(project_root: Path) -> Dict[str, Dict[str, object]]:
-    """Report which hooks are installed and whether they're hopewell-managed."""
+    """Report which hooks are installed and whether they're taskflow-managed."""
     out: Dict[str, Dict[str, object]] = {}
     try:
         hdir = _hooks_dir(project_root)

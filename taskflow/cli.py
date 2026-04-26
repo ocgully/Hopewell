@@ -270,9 +270,9 @@ def cmd_check(args) -> int:
         _print_json({"problems": problems, "clean": not problems})
         return 0 if not problems else 1
     if not problems:
-        print("hopewell check: clean.")
+        print("taskflow check: clean.")
         return 0
-    print(f"hopewell check: {len(problems)} problem(s)")
+    print(f"taskflow check: {len(problems)} problem(s)")
     for p in problems:
         print(f"  - {p}")
     return 1
@@ -553,25 +553,25 @@ def cmd_extensions(args) -> int:
             _print_json({"extensions": data, "ok": not errs})
         else:
             if errs:
-                print(f"hopewell extensions check: {len(errs)} error(s)")
+                print(f"taskflow extensions check: {len(errs)} error(s)")
                 for e in errs:
                     print(f"  {e.get('file','?')}: {e.get('kind','?')}: {e.get('error','?')}")
             else:
                 counts = (f"processors={data.get('processors_loaded', 0)}, "
                           f"components={data.get('components_loaded', 0)}")
-                print(f"hopewell extensions check: clean ({counts})")
+                print(f"taskflow extensions check: clean ({counts})")
         return 0 if not errs else 1
     print(f"taskflow: unknown extensions action '{args.action}'", file=sys.stderr)
     return 1
 
 
 def cmd_web(args) -> int:
-    """Launch the local web UI (requires `hopewell[web]` extras)."""
+    """Launch the local web UI (requires `taskflow[web]` extras)."""
     try:
         from taskflow.web import server as web_server
     except ImportError as exc:
-        print(f"hopewell web: {exc}", file=sys.stderr)
-        print("hopewell web: install extras with `pip install 'hopewell[web]'`", file=sys.stderr)
+        print(f"taskflow web: {exc}", file=sys.stderr)
+        print("taskflow web: install extras with `pip install 'taskflow[web]'`", file=sys.stderr)
         return 2
     root = _project(args).root
     web_server.run(project_root=str(root), port=args.port,
@@ -582,7 +582,7 @@ def cmd_web(args) -> int:
 def cmd_migrate(args) -> int:
     """Re-apply every idempotent project-level setup step (merge driver,
     .gitattributes, .claudeignore, CLAUDE.md block) to an existing
-    `.hopewell/`. Use after upgrading Hopewell to pick up new setup."""
+    `.hopewell/`. Use after upgrading TaskFlow to pick up new setup."""
     from taskflow.project import Project
     start = Path(args.project_root).resolve() if args.project_root else None
     try:
@@ -597,7 +597,7 @@ def cmd_migrate(args) -> int:
     return 0
 
 
-def cmd_migrate_from_hopewell(args) -> int:
+def cmd_migrate_from_taskflow(args) -> int:
     """Rename legacy `.hopewell/` to `.taskflow/` + rewrite internal refs."""
     from taskflow import migrate as migrate_mod
     start = Path(args.project_root).resolve() if args.project_root else Path.cwd().resolve()
@@ -908,7 +908,7 @@ def cmd_hooks(args) -> int:
                     if did:
                         print(f"Uninstalled {name}")
             else:
-                print("No hopewell hook found.")
+                print("No taskflow hook found.")
         if claude_code:
             rc = ch_cli_mod.cmd_uninstall_claude_code(args)
             if rc != 0:
@@ -970,7 +970,7 @@ def cmd_gate(args) -> int:
         res = gates_mod.check_release_readiness(project.root,
                                                 branch=getattr(args, "branch", None))
     else:
-        print(f"hopewell gate: unknown gate '{name}'", file=sys.stderr)
+        print(f"taskflow gate: unknown gate '{name}'", file=sys.stderr)
         return 2
 
     # Report to stderr so the hook's own `echo` output doesn't pollute
@@ -986,7 +986,7 @@ def cmd_hook_on_commit(args) -> int:
     try:
         project = _project(args)
     except FileNotFoundError:
-        return 0  # not a hopewell project; silently no-op
+        return 0  # not a taskflow project; silently no-op
     refs = _extract_refs(args.message, project.cfg.id_prefix)
     closed_refs = _extract_close_refs(args.message, project.cfg.id_prefix)
     actor = _actor_from_env() or "commit-hook"
@@ -1030,7 +1030,7 @@ def _extract_close_refs(msg: str, prefix: str) -> List[str]:
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="taskflow",
-                                description="taskflow — flow-framework tool (formerly hopewell).")
+                                description="taskflow — flow-framework tool.")
     p.add_argument("--version", action="version",
                    version=f"taskflow {__version__} (schema {SCHEMA_VERSION})")
     p.add_argument("--project-root", default=None)
@@ -1053,7 +1053,7 @@ def _build_parser() -> argparse.ArgumentParser:
     from taskflow import backfill_cli as _backfill_cli_mod
     sp = sub.add_parser(
         "backfill",
-        help="Populate .hopewell/nodes/ from git history / issues / TODO / specs",
+        help="Populate .taskflow/nodes/ from git history / issues / TODO / specs",
     )
     sp.add_argument(
         "--source", default="git,todo,spec",
@@ -1157,7 +1157,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--dry-run", action="store_true",
                     help="Show what would change without touching the filesystem")
     sp.add_argument("--quiet", action="store_true")
-    sp.set_defaults(func=cmd_migrate_from_hopewell)
+    sp.set_defaults(func=cmd_migrate_from_taskflow)
 
     # evolve — LLM-driven graph evolution (v0.6 HW-0014)
     sp = sub.add_parser("evolve", help="Evolve the work graph (add-node, wire, unwire, add-loop, rollback, list)")
@@ -1249,7 +1249,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # annotate-auto-enforced — HW-0050
     np = nsub.add_parser("annotate-auto-enforced",
-                         help="Mark routes covered by Hopewell git hooks with data.auto_enforced=true")
+                         help="Mark routes covered by TaskFlow git hooks with data.auto_enforced=true")
     np.add_argument("--apply", action="store_true",
                     help="Persist the annotation (default: dry-run)")
     np.add_argument("--format", choices=["text", "json"], default="text")
@@ -1645,7 +1645,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=cmd_github)
 
     # hooks
-    sp = sub.add_parser("hooks", help="Install/uninstall/inspect Hopewell's git hooks")
+    sp = sub.add_parser("hooks", help="Install/uninstall/inspect TaskFlow's git hooks")
     sp.add_argument("action", choices=["install", "uninstall", "status", "test-pre-push"])
     sp.add_argument("--quiet", action="store_true")
     sp.add_argument("--full", action="store_true",

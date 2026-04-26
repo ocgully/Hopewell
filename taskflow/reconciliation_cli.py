@@ -1,6 +1,6 @@
 """CLI handler functions for `taskflow reconcile ...` (HW-0034).
 
-Kept in its own module so `hopewell/cli.py` isn't touched in this
+Kept in its own module so `taskflow/cli.py` isn't touched in this
 ticket. Christopher wires the subparser + dispatch after this lands.
 
 Every handler takes an `args` namespace (argparse-style) and returns an
@@ -60,7 +60,7 @@ Suggested subparser wiring (drop into `_build_parser` in `cli.py`):
 
 The module is also runnable directly during smoke tests:
 
-    python -m hopewell.reconciliation_cli queue specs/foo.md --heading "## X"
+    python -m taskflow.reconciliation_cli queue specs/foo.md --heading "## X"
 """
 from __future__ import annotations
 
@@ -247,7 +247,7 @@ def cmd_reconcile_resolve(args) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Standalone runner — `python -m hopewell.reconciliation_cli ...`
+# Standalone runner — `python -m taskflow.reconciliation_cli ...`
 # ---------------------------------------------------------------------------
 #
 # Lets us exercise the CLI before the cli.py wiring step lands. Mirrors
@@ -255,7 +255,7 @@ def cmd_reconcile_resolve(args) -> int:
 
 def _build_standalone_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m hopewell.reconciliation_cli",
+        prog="python -m taskflow.reconciliation_cli",
         description="Reconciliation flow CLI — standalone runner.",
     )
     parser.add_argument("--project-root", default=None)

@@ -1,17 +1,20 @@
-"""`.hopewell/meta.json` — the version contract for a project.
+"""`.taskflow/meta.json` (or legacy `.hopewell/meta.json`) — the version
+contract for a project.
 
 Written at `init`, refreshed at `migrate`, read on every `Project.load`.
 Gates cross-version compatibility:
 
   - if the on-disk schema is newer than this package understands, refuse to
-    act ("upgrade Hopewell");
+    act ("upgrade TaskFlow");
   - if the on-disk schema is older than this package's minimum, refuse
     ("run `taskflow migrate`");
   - if config pins a `minimum_version` floor and this package is below it,
     refuse ("pin up or pip install -U").
 
-All "refuse" cases raise typed errors (`HopewellVersionError`) with the
-exact hint. Nothing silently corrupts across versions.
+NOTE: the meta.json field names (`hopewell_schema`,
+`hopewell_version_last_setup`) are preserved across the rebrand —
+renaming them would break every existing on-disk meta.json. The error
+type `HopewellVersionError` is also preserved as a public API contract.
 """
 from __future__ import annotations
 
@@ -28,7 +31,12 @@ META_FILE = "meta.json"
 
 
 class HopewellVersionError(RuntimeError):
-    """Raised when a project's schema / version contract conflicts with this package."""
+    """Raised when a project's schema / version contract conflicts with
+    this package.
+
+    Class name preserved across the hopewell -> taskflow rebrand because
+    it is part of the public API surface — downstream code may catch it.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -128,14 +136,15 @@ def check_compatibility(mf: Optional[MetaFile], *, minimum_version: Optional[str
         pkg_schema = _schema_tuple(SCHEMA_VERSION)
         if disk_schema > pkg_schema:
             raise HopewellVersionError(
-                f"this .hopewell/ uses schema {mf.hopewell_schema}, but this "
-                f"Hopewell (v{__version__}) understands up to schema {SCHEMA_VERSION}. "
-                f"Upgrade via `pip install -U hopewell` and retry."
+                f"this project's storage uses schema {mf.hopewell_schema}, "
+                f"but this TaskFlow (v{__version__}) understands up to "
+                f"schema {SCHEMA_VERSION}. "
+                f"Upgrade via `pip install -U taskflow` and retry."
             )
         if disk_schema < pkg_schema:
             raise HopewellVersionError(
-                f"this .hopewell/ uses schema {mf.hopewell_schema}; this "
-                f"Hopewell (v{__version__}) wants schema {SCHEMA_VERSION}. "
+                f"this project's storage uses schema {mf.hopewell_schema}; "
+                f"this TaskFlow (v{__version__}) wants schema {SCHEMA_VERSION}. "
                 f"Run `taskflow migrate` to upgrade the project files."
             )
 
@@ -144,8 +153,8 @@ def check_compatibility(mf: Optional[MetaFile], *, minimum_version: Optional[str
         if _version_tuple(__version__) < _version_tuple(minimum_version):
             raise HopewellVersionError(
                 f"this project pins minimum_version = '{minimum_version}' "
-                f"but this Hopewell is v{__version__}. "
-                f"Run `pip install -U hopewell>={minimum_version}` and retry."
+                f"but this TaskFlow is v{__version__}. "
+                f"Run `pip install -U taskflow>={minimum_version}` and retry."
             )
 
 

@@ -1,9 +1,9 @@
 """Built-in executor components (HW-0027).
 
-Separate registry from WorkItem components (`hopewell.model.Component`).
+Separate registry from WorkItem components (`taskflow.model.Component`).
 Projects may extend by dropping JSON files into
 `.hopewell/network/components/*.json` — loaded by
-`hopewell.network.load_registry`.
+`taskflow.network.load_registry`.
 
 Schema fields are indicative, not strictly enforced — the minimal rule is
 `required_fields`. Projects are free to add custom fields; they will

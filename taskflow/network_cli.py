@@ -1,6 +1,6 @@
-"""CLI handler functions for `hopewell network ...` (HW-0027).
+"""CLI handler functions for `taskflow network ...` (HW-0027).
 
-Kept in a separate module so `hopewell/cli.py` isn't touched in this
+Kept in a separate module so `taskflow/cli.py` isn't touched in this
 ticket. Christopher wires the subparser + dispatch after this lands.
 
 Every handler takes an `args` namespace (argparse-style) and returns an
@@ -91,14 +91,14 @@ def cmd_network_init(args) -> int:
             print(f"  .gitattributes - added routes.jsonl merge driver entry")
         else:
             print(f"  .gitattributes - already configured (skipped)")
-        print(f"  next: `hopewell network defaults bootstrap` to seed a template")
+        print(f"  next: `taskflow network defaults bootstrap` to seed a template")
     return 0
 
 
 def cmd_network_defaults(args) -> int:
     root = _project_root(args)
     if args.action != "bootstrap":
-        print(f"hopewell network defaults: unknown action {args.action!r}", file=sys.stderr)
+        print(f"taskflow network defaults: unknown action {args.action!r}", file=sys.stderr)
         return 1
     summary = defaults_mod.write_default_template(root)
     if not getattr(args, "quiet", False):
@@ -106,7 +106,7 @@ def cmd_network_defaults(args) -> int:
         print(f"  executors written: {summary['executors']}")
         print(f"  routes added:      {summary['routes_added']} "
               f"(template has {summary['routes_in_template']})")
-        print(f"  next: `hopewell network show --format mermaid`")
+        print(f"  next: `taskflow network show --format mermaid`")
     return 0
 
 
@@ -332,10 +332,10 @@ def cmd_network_validate(args) -> int:
                      "route_count": len(net.routes)})
         return 0 if not problems else 1
     if not problems:
-        print(f"hopewell network validate: clean "
+        print(f"taskflow network validate: clean "
               f"({len(net.executors)} executor(s), {len(net.routes)} route(s))")
         return 0
-    print(f"hopewell network validate: {len(problems)} problem(s)")
+    print(f"taskflow network validate: {len(problems)} problem(s)")
     for p in problems:
         print(f"  - {p}")
     return 1
@@ -347,7 +347,7 @@ def cmd_network_validate(args) -> int:
 
 
 def cmd_network_annotate_auto_enforced(args) -> int:
-    """Mark routes covered by Hopewell's git hooks with
+    """Mark routes covered by TaskFlow's git hooks with
     `data.auto_enforced = true`.
 
     Default is a dry-run that prints which routes would change. Pass
@@ -377,7 +377,7 @@ def cmd_network_annotate_auto_enforced(args) -> int:
         _print_json(payload)
         return 0
 
-    print(f"hopewell network annotate-auto-enforced")
+    print(f"taskflow network annotate-auto-enforced")
     print(f"  total routes:          {payload['total_routes']}")
     print(f"  covered by hooks:      {payload['covered_by_hooks']}")
     print(f"  already annotated:     {payload['already_annotated']}")

@@ -4,6 +4,12 @@ A claim is a remote git branch named `hopewell/<NODE-ID>[-<slug>]`. The
 push IS the mutex: git's non-fast-forward rejection makes claiming atomic.
 First pusher wins; second sees a collision and picks another node.
 
+NOTE: the `hopewell/` branch prefix is preserved across the
+hopewell -> taskflow rebrand for backward compatibility — already-pushed
+claim branches in downstream projects use `hopewell/<id>` and would be
+orphaned if we changed the prefix. Renaming the prefix is a separate,
+deliberate migration decision for a future major version.
+
 Releases delete the branch. Merging the branch into main (via PR) releases
 the claim by virtue of the branch being gone.
 
@@ -19,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 
+# Preserved across the rebrand — see module docstring.
 CLAIM_BRANCH_PREFIX = "hopewell/"
 
 

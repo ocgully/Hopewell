@@ -1,7 +1,7 @@
 """Default flow-network template (HW-0027, expanded HW-0039).
 
-Installed by `hopewell network defaults bootstrap`. The canonical
-starting point for a Hopewell-consuming repo, modelled on the
+Installed by `taskflow network defaults bootstrap`. The canonical
+starting point for a TaskFlow-consuming repo, modelled on the
 **AgentFactory core marketplace roster** (12 agents) and the
 validation-loop topology agents use to hand work off to one another.
 
